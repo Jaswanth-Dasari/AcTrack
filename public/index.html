@@ -255,7 +255,7 @@
             const teamsSearch = document.getElementById('teams-search').value;
 
 
-            fetch('http://localhost:5000/projects', {
+            fetch('https://actracker.onrender.com/projects', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -284,7 +284,7 @@
 // });
 
 function fetchProjectCount() {
-    fetch('http://localhost:5000/projects/count')
+    fetch('https://actracker.onrender.com/projects/count')
         .then(response => response.json())
         .then(data => {
             document.getElementById('projects-worked').innerText = data.count;
@@ -341,7 +341,7 @@ function toggleTimer() {
 
         // Fetch projects from the server and populate the dropdown
         function fetchProjects() {
-            fetch('http://localhost:5000/projects')
+            fetch('https://actracker.onrender.com/projects')
                 .then(response => response.json())
                 .then(data => {
                     projects = data; // Store projects
@@ -428,7 +428,7 @@ function stopTimer() {
         const projectId = projectSelect.value;
         const workedTime = secondsElapsed;  // Time in seconds
 
-        fetch('http://localhost:5000/api/save-time-entry', {
+        fetch('https://actracker.onrender.com/api/save-time-entry', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -501,7 +501,7 @@ function captureScreenshot() {
 
 // Function to fetch recent screenshots (assumed to be defined elsewhere)
 function fetchRecentScreenshots() {
-    fetch('http://localhost:5000/api/recent-screenshots')
+    fetch('https://actracker.onrender.com/api/recent-screenshots')
         .then(response => response.json())
         .then(screenshots => {
             const screenshotsContainer = document.getElementById('recent-screenshots');
@@ -573,7 +573,7 @@ function sendInvitation() {
     }
 
     // Send invitation email via API
-    fetch('http://localhost:5000/api/send-invite', {
+    fetch('https://actracker.onrender.com/api/send-invite', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -695,7 +695,7 @@ function sendActivityData() {
     const mouseUsagePercentage = (mouseEvents / totalTime) * 100;
     const keyboardUsagePercentage = (keyboardEvents / totalTime) * 100;
 
-    fetch('http://localhost:5000/api/save-activity', {
+    fetch('https://actracker.onrender.com/api/save-activity', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -720,7 +720,7 @@ function sendActivityData() {
 }
 function fetchActivityData() {
     const projectId = document.getElementById('project-select').value;
-    fetch(`http://localhost:5000/api/get-activity/${projectId}`)
+    fetch(`https://actracker.onrender.com/api/get-activity/${projectId}`)
         .then(response => response.json())
         .then(data => {
             const labels = data.map(entry => new Date(entry.date).toLocaleTimeString());
@@ -766,7 +766,7 @@ fetchActivityData();
 function fetchWorkedTimeThisWeek() {
     const userId = 'user123'; // Replace with actual user ID
 
-    fetch(`http://localhost:5000/api/total-worked-time-this-week/${userId}`)
+    fetch(`https://actracker.onrender.com/api/total-worked-time-this-week/${userId}`)
         .then(response => response.json())
         .then(data => {
             const totalSeconds = data.totalWorkedSeconds;
@@ -798,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function fetchActivityThisWeek() {
     const userId = 'user123'; // Replace with actual user ID
 
-    fetch(`http://localhost:5000/api/activity-this-week/${userId}`)
+    fetch(`https://actracker.onrender.com/api/activity-this-week/${userId}`)
         .then(response => response.json())
         .then(data => {
             // Parse the activity data and prepare it for the chart
@@ -865,7 +865,7 @@ function createActivityGraph(labels, mouseUsage, keyboardUsage) {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100, // Limit the y-axis to 100%
+                    max: 1000, // Limit the y-axis to 100%
                     title: {
                         display: true,
                         text: 'Usage Percentage (%)'
@@ -893,7 +893,7 @@ function fetchLastScreenshot() {
     const userId = 'user123'; // Replace with actual user ID
 
     // Make the API call to fetch the last screenshot
-    fetch(`http://localhost:5000/api/last-screenshot/${userId}`)
+    fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`)
         .then(response => response.json())  // Parse the response as JSON
         .then(data => {
             // Check if we received the last screenshot time

@@ -21,6 +21,7 @@ body {
     top: 0;
     left: 0;
     transition: all 0.3s ease;
+    z-index: 999; 
 }
 
 .sidebar .logo {
@@ -123,9 +124,9 @@ body {
 }
 
 .dashboard-content {
-    flex-grow:100;
+    flex-grow:1;
     padding: 20px;
-    margin-left:15%;
+    margin-left:200px;
     overflow-y: auto;
     background-color: #f4f4f4;
 }
@@ -165,7 +166,7 @@ header {
 
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 20px;
 }
 
@@ -540,4 +541,216 @@ tr:hover {
 
 h2 {
     text-align: center;
+}
+
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+    
+    .dashboard-content {
+        margin-left: 0;
+    }
+
+    .sidebar {
+        width: 60px;
+        padding: 10px;
+        position: fixed;
+    }
+
+    .sidebar .logo h2 {
+        font-size: 24px;
+    }
+
+    .sidebar ul li {
+        margin: 10px 0;
+        text-align: center;
+    }
+
+    .sidebar ul li a {
+        font-size: 16px;
+        padding: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        flex-direction: column;
+    }
+    
+    .dashboard-content {
+        margin-left: 0;
+        padding: 15px;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+    }
+
+    .sidebar ul {
+        display: flex;
+        justify-content: space-around;
+    }
+
+    .sidebar ul li {
+        margin: 0;
+    }
+
+    .sidebar ul li a {
+        padding: 15px;
+        font-size: 14px;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr; /* Stack cards in a single column */
+    }
+
+    .flex-container {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .graph-container, .screenshot-container {
+        margin-right: 0;
+        width: 100%;
+    }
+
+    .action-buttons button {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .modal-content {
+        width: 90%;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Sidebar Styles */
+    .sidebar {
+        width: 100%; /* Full width */
+        height: auto;
+        position: relative;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start; /* Align logo to the top-left */
+    }
+
+    /* Logo Positioning */
+    .sidebar .logo {
+        margin-bottom: 20px; /* Space between logo and elements */
+        display: flex;
+        justify-content: flex-start;
+        width: 100%; /* Ensure logo takes the full width */
+        margin-top: -70px;
+    }
+
+    .sidebar ul {
+        display: flex; /* Display sidebar items in a row */
+        justify-content: space-between;
+        width: 0px;
+        padding: 0;
+        margin: 0;
+        margin-top: 40px;
+    }
+
+    .sidebar ul li {
+        margin: 0 5px; /* Add space between the items */
+    }
+
+    .sidebar ul li a {
+        font-size: 12px;
+        padding: 10px;
+        text-align: left;
+    }
+
+    /* Ensure dashboard content fits within the screen */
+    .dashboard-content {
+        margin-left: 0;
+        padding: 15px;
+    }
+
+    body, html {
+        width: 100%;
+        height: 100%;
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+    }
+}
+@media (min-width: 768px) {
+    /* Ensure sidebar content stays within the sidebar */
+    .sidebar {
+        width: 200px; /* Ensure the sidebar width is fixed */
+        overflow-y: auto; /* Add scroll if content exceeds sidebar height */
+        word-wrap: break-word; /* Break long words */
+        height: 100vh; /* Ensure it covers the full viewport height */
+        box-sizing: border-box; /* Make sure padding is included in the width */
+    }
+
+    /* Prevent sidebar content from exceeding the sidebar width */
+    .sidebar ul li a {
+        white-space: nowrap; /* Prevent text from wrapping */
+        overflow: hidden; /* Hide overflowing text */
+        text-overflow: ellipsis; /* Add ellipsis for long text */
+    }
+
+    /* Adjust the dashboard content to not overlap with the sidebar */
+    .dashboard-content {
+        margin-left: 200px; /* Same as sidebar width */
+        padding: 20px;
+        overflow-y: auto;
+        background-color: #f4f4f4;
+        box-sizing: border-box;
+    }
+}
+@media (max-width: 768px) {
+    .floating-timer {
+        width: 80%; /* Adjust width for smaller screens */
+        bottom: 10px;
+        right: 10px;
+        padding: 10px; /* Reduce padding */
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .floating-timer {
+        width: 25%; /* Full width */
+        bottom: 5px;
+        right: 5px;
+        padding: 4px;
+        font-size: 4px;
+    }
+    .floating-timer .stop-button {
+        padding: 8px 16px; /* Reduce padding for tablets */
+        font-size: 8px; /* Smaller font size */
+    }
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        width: 80%; /* Adjust width for tablets */
+        padding: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .modal {
+        top: 60px; /* Adjust top so modal appears below sidebar */
+    }
+    .modal-content {
+        width: 90%; /* Full width for mobile */
+        padding: 10px;
+    }
+
+    /* Ensure modal content is scrollable on smaller screens */
+    .modal-content {
+        height: auto;
+        max-height: 80vh; /* Max height to ensure visibility */
+        overflow-y: auto; /* Scroll if content exceeds modal height */
+    }
 }
