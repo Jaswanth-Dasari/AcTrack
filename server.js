@@ -334,7 +334,7 @@ app.post('/api/send-invite', async (req, res) => {
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://actracker.onrender.com:`);
 });
 app.get('/projects/count', async (req, res) => {
     try {
