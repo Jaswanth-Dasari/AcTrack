@@ -207,10 +207,6 @@ header {
     max-height: 300px; /* Limit height to show 10 images */
 }
 
-.graph-container {
-    margin-left: 20px;
-}
-
 .modal {
     display: none;
     position: fixed;
@@ -443,8 +439,8 @@ button:focus {
 }
 
 .floating-timer .timer-display {
-    font-size: 20px;
-    margin-bottom: 10px;
+    font-size: 17px;
+    padding: 10px 0px;
 }
 
 .floating-timer button {
@@ -489,10 +485,6 @@ button:focus {
     border-bottom: 1px solid #555;
 }
 
-.floating-timer .timer-display {
-    font-size: 20px;
-    margin-bottom: 10px;
-}
 
 .floating-timer button {
     background-color: #ff4d4d;
@@ -544,90 +536,7 @@ h2 {
 }
 
 
-@media (max-width: 768px) {
-    .container {
-        flex-direction: column;
-    }
-    
-    .dashboard-content {
-        margin-left: 0;
-    }
 
-    .sidebar {
-        width: 60px;
-        padding: 10px;
-        position: fixed;
-    }
-
-    .sidebar .logo h2 {
-        font-size: 24px;
-    }
-
-    .sidebar ul li {
-        margin: 10px 0;
-        text-align: center;
-    }
-
-    .sidebar ul li a {
-        font-size: 16px;
-        padding: 10px;
-    }
-}
-
-@media (max-width: 480px) {
-    .container {
-        flex-direction: column;
-    }
-    
-    .dashboard-content {
-        margin-left: 0;
-        padding: 15px;
-    }
-
-    .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-    }
-
-    .sidebar ul {
-        display: flex;
-        justify-content: space-around;
-    }
-
-    .sidebar ul li {
-        margin: 0;
-    }
-
-    .sidebar ul li a {
-        padding: 15px;
-        font-size: 14px;
-    }
-
-    .dashboard-grid {
-        grid-template-columns: 1fr; /* Stack cards in a single column */
-    }
-
-    .flex-container {
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    .graph-container, .screenshot-container {
-        margin-right: 0;
-        width: 100%;
-    }
-
-    .action-buttons button {
-        display: block;
-        width: 100%;
-        margin-bottom: 10px;
-    }
-
-    .modal-content {
-        width: 90%;
-    }
-}
 
 @media (max-width: 480px) {
     /* Sidebar Styles */
@@ -635,10 +544,17 @@ h2 {
         width: 100%; /* Full width */
         height: auto;
         position: relative;
-        padding: 10px;
+        padding: 10px 0px;
         display: flex;
         flex-direction: column;
-        align-items: flex-start; /* Align logo to the top-left */
+        align-items: start; /* Align logo to the top-left */
+    }
+    .nav-bar{
+        width: auto;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 0px 10px;
     }
 
     /* Logo Positioning */
@@ -665,7 +581,7 @@ h2 {
 
     .sidebar ul li a {
         font-size: 12px;
-        padding: 10px;
+        padding: 10px 0px;
         text-align: left;
     }
 
@@ -680,8 +596,92 @@ h2 {
         height: 100%;
         overflow-x: hidden; /* Prevent horizontal scrolling */
     }
+    .container {
+        flex-direction: column;
+    }
+    
+    .dashboard-content {
+        margin-left: 0;
+        padding: 15px;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+    }
+
+    .sidebar ul {
+        display: flex;
+        justify-content: space-around;
+    }
+
+
+    .dashboard-grid {
+        grid-template-columns: 1fr; /* Stack cards in a single column */
+    }
+
+    .flex-container {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .graph-container, .screenshot-container {
+        margin-right: 0;
+        width: 90%;
+    }
+
+    .action-buttons button {
+        display: block;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .modal-content {
+        width: 90%;
+    }
+    .floating-timer {
+        width: 25%; /* Adjust width for smaller screens */
+        bottom: 10px;
+        right: 10px;
+        padding: 10px; /* Reduce padding */
+        font-size: 16px;
+    }
+
+    .floating-timer .timer-display {
+        font-size: 15px;
+        padding: 5px 0px;
+    }
+
 }
 @media (min-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+    
+    .dashboard-content {
+        margin-left: 0;
+    }
+
+    .sidebar {
+        width: 60px;
+        padding: 10px;
+        position: fixed;
+    }
+
+    .sidebar .logo h2 {
+        font-size: 24px;
+    }
+
+    .sidebar ul li {
+        margin: 10px 0;
+        text-align: left;
+    }
+
+    .sidebar ul li a {
+        font-size: 16px;
+        padding: 10px;
+    }
     /* Ensure sidebar content stays within the sidebar */
     .sidebar {
         width: 200px; /* Ensure the sidebar width is fixed */
@@ -706,10 +706,8 @@ h2 {
         background-color: #f4f4f4;
         box-sizing: border-box;
     }
-}
-@media (max-width: 768px) {
     .floating-timer {
-        width: 80%; /* Adjust width for smaller screens */
+        width: 15%; /* Adjust width for smaller screens */
         bottom: 10px;
         right: 10px;
         padding: 10px; /* Reduce padding */
@@ -717,40 +715,11 @@ h2 {
     }
 }
 
-@media (max-width: 480px) {
-    .floating-timer {
-        width: 25%; /* Full width */
-        bottom: 5px;
-        right: 5px;
-        padding: 4px;
-        font-size: 4px;
-    }
-    .floating-timer .stop-button {
-        padding: 8px 16px; /* Reduce padding for tablets */
-        font-size: 8px; /* Smaller font size */
-    }
-}
 
 @media (max-width: 768px) {
     .modal-content {
-        width: 80%; /* Adjust width for tablets */
+        width: 80%;
         padding: 15px;
-    }
-}
-
-@media (max-width: 480px) {
-    .modal {
-        top: 60px; /* Adjust top so modal appears below sidebar */
-    }
-    .modal-content {
-        width: 90%; /* Full width for mobile */
-        padding: 10px;
-    }
-
-    /* Ensure modal content is scrollable on smaller screens */
-    .modal-content {
-        height: auto;
-        max-height: 80vh; /* Max height to ensure visibility */
-        overflow-y: auto; /* Scroll if content exceeds modal height */
+        margin-top: 150px;
     }
 }

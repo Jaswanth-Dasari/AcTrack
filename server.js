@@ -20,21 +20,22 @@ mongoose.connect(mongoURI, {})
     .catch(err => console.log('MongoDB connection error:', err));
 
     const projectSchema = new mongoose.Schema({
-        projectName: { type: String, required: true },
-        clientName: { type: String, required: true },
-        isBillable: { type: Boolean, default: false },
+        projectName: { type: String, required: true }, 
+        clientName: { type: String, required: true },  
+        isBillable: { type: Boolean, default: false }, 
         members: {
-            managers: { type: [String], default: [] },
-            users: { type: [String], default: [] },
-            viewers: { type: [String], default: [] }
+            managers: { type: [String], default: [] },  
+            users: { type: [String], default: [] },     
+            viewers: { type: [String], default: [] }    
         },
         budget: {
-            budgetType: { type: String, default: '' },
-            basedOn: { type: String, default: '' },
-            cost: { type: Number, default: 0 }
+            budgetType: { type: String, required: true }, 
+            basedOn: { type: String, required: true },    
+            cost: { type: Number, required: true }        
         },
-        teams: { type: [String], default: [] }
+        teams: { type: [String], required: true } 
     });
+    
     
     
     
@@ -201,18 +202,6 @@ app.post('/projects/teams', async (req, res) => {
     }
 });
 
-// // Define the User Activity schema
-// const userActivitySchema = new mongoose.Schema({
-//     userId: String,
-//     date: { type: Date, default: Date.now },
-//     workedTime: Number,   // In minutes
-//     idleTime: Number,     // In minutes
-//     mouseActivity: Number,   // Mouse event count
-//     keyboardActivity: Number // Keyboard event count
-// });
-
-// Create models
-// const UserActivity = mongoose.model('UserActivity', userActivitySchema);
 
 // Take a screenshot and save it to MongoDB
 app.post('/api/take-screenshot', async (req, res) => {
@@ -279,21 +268,34 @@ app.get('/api/recent-screenshots', async (req, res) => {
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
-    secure: true, // use SSL
+    secure: true, // true for 465, false for other ports
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: process.env.EMAIL_USER, // Gmail user
+        pass: process.env.EMAIL_PASS, // Gmail password or app password
+    }
+});
+
+// Check if transport configuration is correct
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log("Error with transporter configuration: ", error);
+    } else {
+        console.log("Transporter is ready to send emails.");
     }
 });
 
 // Async function to send an email
 async function sendEmail(toEmail, inviteLink) {
     try {
+        // Log the email being sent and the invite link for debugging
+        console.log('Preparing to send email to:', toEmail);
+        console.log('Invite link:', inviteLink);
+
         // Send mail with defined transport object
         let info = await transporter.sendMail({
-            from: `"AcTrack" <${process.env.EMAIL_USER}>`,
-            to: toEmail,
-            subject: "You are invited to join the team!",
+            from: `"AcTrack" <${process.env.EMAIL_USER}>`, // sender address
+            to: toEmail, // receiver address
+            subject: "You are invited to join the team!", // Subject line
             html: `
                 <h1>Team Invitation</h1>
                 <p>You have been invited to join our team. Click the link below to accept the invitation:</p>
@@ -301,11 +303,11 @@ async function sendEmail(toEmail, inviteLink) {
             `
         });
 
-        console.log('Message sent: %s', info.messageId);
-        return info;
+        console.log('Message sent successfully, ID:', info.messageId); // Log success message
+        return info; // Return info if successful
     } catch (error) {
-        console.error('Error sending email:', error);
-        throw error;
+        console.error('Error sending email:', error); // Log detailed error information
+        throw error; // Throw error so it can be caught by the caller
     }
 }
 
@@ -314,27 +316,32 @@ app.post('/api/send-invite', async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
+        console.log('No email provided in request body.');
         return res.status(400).json({ message: 'Email is required' });
     }
 
     try {
+        // Log received email for debugging
+        console.log('Received request to send invite to:', email);
+
         // Generate an invitation link (replace with your actual app URL)
         const inviteLink = `http://localhost:5000/join-team?email=${encodeURIComponent(email)}`;
 
         // Send the email
         await sendEmail(email, inviteLink);
 
-        // Respond with success
+        // Respond with success message
+        console.log('Invitation sent successfully to:', email);
         res.status(200).json({ message: 'Invitation sent successfully!' });
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('Error while processing invitation request:', error);
         res.status(500).json({ error: 'Failed to send invitation', details: error.message });
     }
 });
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server is running on http://actracker.onrender.com:`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });
 app.get('/projects/count', async (req, res) => {
     try {

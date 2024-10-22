@@ -14,11 +14,12 @@
             <ul><div class="logo">
                 <h2>AcTrack.</h2>
             </div>
-            
+             <div class="nav-bar">   
                 <li><a href="#">Dashboard</a></li>
                 <li><a href="#">Activity</a></li>
                 <li><a href="#">Screenshots</a></li>
                 <li><a href="#">Settings</a></li>
+            </div>
             </ul>
         </nav>
 
@@ -562,43 +563,91 @@ document.getElementById('floating-stop-btn').addEventListener('click', stopTimer
 // Make the floating timer draggable
 makeDraggable(document.getElementById('floating-timer'), document.getElementById('floating-timer-header'));
 
-// Function to send email invitation
-function sendInvitation() {
-    console.log('Send invite function triggered');
-    const email = document.getElementById('email-input').value;
+// // Function to send email invitation
+// function sendInvitation() {
+//     console.log('Send invite function triggered');
+//     const email = document.getElementById('email-input').value;
 
-    if (!email) {
-        alert('Please enter a valid email address');
-        return;
+//     if (!email) {
+//         alert('Please enter a valid email address');
+//         return;
+//     }
+
+//     // Send invitation email via API
+//     fetch('https://actracker.onrender.com/api/send-invite', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json',
+//         },
+//         body: JSON.stringify({ email: email })
+//     })
+//     .then(response => {
+//         // Convert response to JSON
+//         return response.json().then(data => ({ status: response.status, body: data }));
+//     })
+//     .then(({ status, body }) => {
+//         if (status === 200) {
+//             alert(body.message);  // Show success message
+//         } else {
+//             alert('Error: ' + body.message);  // Show error message
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Error:', error);  // Handle any fetch errors
+//         alert('Error sending invitation: ' + error.message);
+//     });
+// }
+
+// // Add event listener to the "Send Invitation" button
+// document.getElementById('send-invite-button').addEventListener('click', sendInvitation);
+    // Wait until the DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add event listener to the "Send Invitation" button
+        document.getElementById('send-invite-button').addEventListener('click', sendInvitation);
+    });
+
+    // Function to send email invitation
+    function sendInvitation() {
+        console.log('Send invite function triggered');
+        const email = document.getElementById('email-input').value;
+
+        // Basic email validation
+        if (!email || !validateEmail(email)) {
+            alert('Please enter a valid email address');
+            return;
+        }
+
+        // Send invitation email via API
+        fetch('https://actracker.onrender.com/api/send-invite', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: email })
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Handle response error (status not 200-299)
+                return response.json().then(data => {
+                    throw new Error(data.message || 'Failed to send invitation');
+                });
+            }
+            return response.json();  // Parse response as JSON
+        })
+        .then(data => {
+            alert(data.message);  // Show success message
+        })
+        .catch(error => {
+            console.error('Error:', error);  // Handle any fetch errors
+            alert('Error sending invitation: ' + error.message);
+        });
     }
 
-    // Send invitation email via API
-    fetch('https://actracker.onrender.com/api/send-invite', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: email })
-    })
-    .then(response => {
-        // Convert response to JSON
-        return response.json().then(data => ({ status: response.status, body: data }));
-    })
-    .then(({ status, body }) => {
-        if (status === 200) {
-            alert(body.message);  // Show success message
-        } else {
-            alert('Error: ' + body.message);  // Show error message
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);  // Handle any fetch errors
-        alert('Error sending invitation: ' + error.message);
-    });
-}
-
-// Add event listener to the "Send Invitation" button
-document.getElementById('send-invite-button').addEventListener('click', sendInvitation);
+    // Function to validate email format (simple regex for basic validation)
+    function validateEmail(email) {
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(String(email).toLowerCase());
+    }
 
 function getWeekRange() {
     const now = new Date();
