@@ -191,7 +191,7 @@
         <span class="close" onclick="closeModal('invite-team-modal')">&times;</span>
         <h2>Invite Your Team</h2>
         <input type="email" id="email-input" placeholder="Team Member Email" required>
-        <button id="send-invite-button">Send Invitation</button>
+        <button id="send-invite-button" onclick="closeModal('invite-team-modal')">Send Invitation</button>
     </div>
 </div>
 
@@ -563,40 +563,6 @@ document.getElementById('floating-stop-btn').addEventListener('click', stopTimer
 // Make the floating timer draggable
 makeDraggable(document.getElementById('floating-timer'), document.getElementById('floating-timer-header'));
 
-// // Function to send email invitation
-// function sendInvitation() {
-//     console.log('Send invite function triggered');
-//     const email = document.getElementById('email-input').value;
-
-//     if (!email) {
-//         alert('Please enter a valid email address');
-//         return;
-//     }
-
-//     // Send invitation email via API
-//     fetch('https://actracker.onrender.com/api/send-invite', {
-//         method: 'POST',
-//         headers: {
-//             'Content-Type': 'application/json',
-//         },
-//         body: JSON.stringify({ email: email })
-//     })
-//     .then(response => {
-//         // Convert response to JSON
-//         return response.json().then(data => ({ status: response.status, body: data }));
-//     })
-//     .then(({ status, body }) => {
-//         if (status === 200) {
-//             alert(body.message);  // Show success message
-//         } else {
-//             alert('Error: ' + body.message);  // Show error message
-//         }
-//     })
-//     .catch(error => {
-//         console.error('Error:', error);  // Handle any fetch errors
-//         alert('Error sending invitation: ' + error.message);
-//     });
-// }
 
 // // Add event listener to the "Send Invitation" button
 // document.getElementById('send-invite-button').addEventListener('click', sendInvitation);
