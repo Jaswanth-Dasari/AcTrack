@@ -500,20 +500,47 @@ function captureScreenshot() {
     });
 }
 
-// Function to fetch recent screenshots (assumed to be defined elsewhere)
+// // Function to fetch recent screenshots (assumed to be defined elsewhere)
+// function fetchRecentScreenshots() {
+//     fetch('https://actracker.onrender.com/api/recent-screenshots')
+//         .then(response => response.json())
+//         .then(screenshots => {
+//             const screenshotsContainer = document.getElementById('recent-screenshots');
+//             screenshotsContainer.innerHTML = '';  // Clear existing screenshots
+
+//             screenshots.forEach(screenshot => {
+//                 const img = document.createElement('img');
+//                 img.src = screenshot.imagePath;  // Set the image source to the screenshot path
+//                 img.alt = `Screenshot taken at ${new Date(screenshot.timestamp).toLocaleString()}`;
+//                 img.width = 200;  // Set desired width
+//                 img.height = 150;  // Set desired height
+
+//                 screenshotsContainer.appendChild(img);  // Add the image to the container
+//             });
+//         })
+//         .catch(error => {
+//             console.error('Error fetching recent screenshots:', error);
+//         });
+// }
+
+// // Add event listener to the stop button in the floating timer
+// document.getElementById('floating-stop-btn').addEventListener('click', stopTimer);
+
+// Function to fetch recent screenshots from S3 and display them in the container
 function fetchRecentScreenshots() {
-    fetch('https://actracker.onrender.com/api/recent-screenshots')
+    fetch('/api/recent-screenshots')  // Call the backend endpoint to get the screenshot URLs
         .then(response => response.json())
         .then(screenshots => {
             const screenshotsContainer = document.getElementById('recent-screenshots');
             screenshotsContainer.innerHTML = '';  // Clear existing screenshots
 
+            // Iterate over the screenshots and create img elements
             screenshots.forEach(screenshot => {
                 const img = document.createElement('img');
-                img.src = screenshot.imagePath;  // Set the image source to the screenshot path
+                img.src = screenshot.url;  // Use the URL from S3
                 img.alt = `Screenshot taken at ${new Date(screenshot.timestamp).toLocaleString()}`;
-                img.width = 200;  // Set desired width
-                img.height = 150;  // Set desired height
+                img.width = 200;  // Set the desired width
+                img.height = 150;  // Set the desired height
 
                 screenshotsContainer.appendChild(img);  // Add the image to the container
             });
@@ -523,8 +550,9 @@ function fetchRecentScreenshots() {
         });
 }
 
-// Add event listener to the stop button in the floating timer
-document.getElementById('floating-stop-btn').addEventListener('click', stopTimer);
+// Call the fetchRecentScreenshots function when the page loads
+document.addEventListener('DOMContentLoaded', fetchRecentScreenshots);
+
 
     </script>
     <script>

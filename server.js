@@ -6,12 +6,22 @@ const path = require('path');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const nodemailer = require('nodemailer'); 
+const AWS = require('aws-sdk');
 const dotenv=require('dotenv');
 require('dotenv').config();
 
 
 const app = express();
 const PORT = 5000;
+
+// AWS S3 Configuration
+const s3 = new AWS.S3({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,      // Your AWS Access Key
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,  // Your AWS Secret Access Key
+    region: process.env.AWS_REGION                   // Your AWS Region
+});
+
+const bucketName = process.env.S3_BUCKET_NAME;        // S3 bucket name
 
 // MongoDB connection
 const mongoURI = process.env.MONGO_URI; 
@@ -35,10 +45,6 @@ mongoose.connect(mongoURI, {})
         },
         teams: { type: [String], required: true } 
     });
-    
-    
-    
-    
 
 const screenshotSchema = new mongoose.Schema({
     userId: String,          // User ID for tracking who took the screenshot
@@ -203,34 +209,78 @@ app.post('/projects/teams', async (req, res) => {
 });
 
 
-// Take a screenshot and save it to MongoDB
 app.post('/api/take-screenshot', async (req, res) => {
     const userId = req.body.userId || "user123";  // Ideally, get this from authentication
-    const screenshotPath = path.join(__dirname, 'public', 'screenshots', `screenshot-${Date.now()}.png`);
 
     try {
-        // Take a screenshot and save it locally
+        // Take a screenshot
         const img = await screenshot({ format: 'png' });
-        fs.writeFileSync(screenshotPath, img);
 
-        // Save screenshot details in MongoDB
-        const newScreenshot = new Screenshot({
-            userId: userId,
-            imagePath: `/screenshots/${path.basename(screenshotPath)}`  // Save relative path
-        });
+        // Define the S3 file parameters without the ACL field
+        const s3Params = {
+            Bucket: bucketName,
+            Key: `screenshots/screenshot-${Date.now()}.png`,  // File name in S3
+            Body: img,
+            ContentType: 'image/png'
+        };
 
-        await newScreenshot.save();
+        // Upload the screenshot to S3
+        s3.upload(s3Params, async (err, data) => {
+            if (err) {
+                console.error('Error uploading to S3:', err);
+                return res.status(500).json({ error: 'Error uploading to S3', details: err });
+            }
 
-        // Respond with the screenshot details
-        res.status(201).json({
-            message: 'Screenshot saved successfully',
-            screenshot: newScreenshot
+            // Save the screenshot info (URL) in MongoDB
+            const newScreenshot = new Screenshot({
+                userId: userId,
+                imageUrl: data.Location  // URL of the image in S3
+            });
+
+            await newScreenshot.save();
+
+            // Respond with the screenshot details
+            res.status(201).json({
+                message: 'Screenshot saved successfully to S3',
+                screenshot: newScreenshot
+            });
         });
     } catch (err) {
         console.error('Error taking screenshot:', err);
         res.status(500).json({ error: 'Error taking screenshot', details: err });
     }
 });
+
+
+// // Take a screenshot and save it to MongoDB
+// app.post('/api/take-screenshot', async (req, res) => {
+//     const userId = req.body.userId || "user123";  // Ideally, get this from authentication
+//     const screenshotPath = path.join(__dirname, 'public', 'screenshots', `screenshot-${Date.now()}.png`);
+
+//     try {
+//         // Take a screenshot and save it locally
+//         const img = await screenshot({ format: 'png' });
+//         fs.writeFileSync(screenshotPath, img);
+
+//         // Save screenshot details in MongoDB
+//         const newScreenshot = new Screenshot({
+//             userId: userId,
+//             imagePath: `/screenshots/${path.basename(screenshotPath)}`  // Save relative path
+//         });
+
+//         await newScreenshot.save();
+
+//         // Respond with the screenshot details
+//         res.status(201).json({
+//             message: 'Screenshot saved successfully',
+//             screenshot: newScreenshot
+//         });
+//     } catch (err) {
+//         console.error('Error taking screenshot:', err);
+//         res.status(500).json({ error: 'Error taking screenshot', details: err });
+//     }
+// });
+
 
 // Retrieve user activities
 app.get('/api/get-activity/:userId', (req, res) => {
@@ -252,16 +302,53 @@ app.get('/api/get-screenshots/:userId', (req, res) => {
             console.error('Error retrieving screenshots:', err);  // Log the error to the console
             res.status(500).json({ error: 'Error retrieving screenshots', details: err });
         });
+        // Limit the number of screenshots fetched (e.g., 5)
+        const maxScreenshots = 6;
+        const screenshotUrls = data.Contents.map(item => {
+            return {
+                url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                timestamp: item.LastModified
+            };
+        }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, maxScreenshots);  // Limit to the most recent 5
+
 });
 
 
 // API to get recent screenshots
+// app.get('/api/recent-screenshots', async (req, res) => {
+//     try {
+//         const screenshots = await Screenshot.find().sort({ timestamp: -1 }).limit(5);  // Get the latest 5 screenshots
+//         res.status(200).json(screenshots);
+//     } catch (error) {
+//         res.status(500).json({ error: 'Error fetching recent screenshots', details: error });
+//     }
+// });
+
+// Endpoint to fetch recent screenshots from S3 bucket
 app.get('/api/recent-screenshots', async (req, res) => {
+    const params = {
+        Bucket: bucketName,
+        Prefix: 'screenshots/', // Folder where screenshots are stored
+    };
+
     try {
-        const screenshots = await Screenshot.find().sort({ timestamp: -1 }).limit(5);  // Get the latest 5 screenshots
-        res.status(200).json(screenshots);
+        // List objects in the bucket with the specified prefix
+        const data = await s3.listObjectsV2(params).promise();
+
+        // Extract the URLs of the screenshots
+        const screenshotUrls = data.Contents.map(item => {
+            return {
+                url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                timestamp: item.LastModified  // Get the timestamp of the file
+            };
+        }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));  // Sort by timestamp
+
+        // Return the list of URLs
+        res.status(200).json(screenshotUrls);
     } catch (error) {
-        res.status(500).json({ error: 'Error fetching recent screenshots', details: error });
+        console.error('Error fetching screenshots from S3:', error);
+        res.status(500).json({ error: 'Error fetching screenshots', details: error.message });
     }
 });
 
