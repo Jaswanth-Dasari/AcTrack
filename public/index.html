@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -378,34 +377,12 @@ document.getElementById('start-timer-btn').addEventListener('click', () => {
 
     </script>
     <script>
-//         document.addEventListener('DOMContentLoaded', () => {
-//     fetchRecentScreenshots();  // Fetch recent screenshots on page load
+        document.addEventListener('DOMContentLoaded', () => {
+    fetchRecentScreenshots();  // Fetch recent screenshots on page load
 
-//     // Add event listener to capture screenshot button
-//     document.getElementById('capture-screenshot-btn').addEventListener('click', captureScreenshot);
-// });
-document.getElementById('capture-screenshot-btn').addEventListener('click', function () {
-        html2canvas(document.body, {
-            onrendered: function (canvas) {
-                // Convert canvas to image data URL
-                var imageData = canvas.toDataURL('image/png');
-
-                // Send image to the server via POST
-                fetch('/api/upload-screenshot', {
-                    method: 'POST',
-                    body: JSON.stringify({ image: imageData }),
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Screenshot uploaded:', data);
-                })
-                .catch(error => {
-                    console.error('Error uploading screenshot:', error);
-                });
-            }
-        });
-    });
+    // Add event listener to capture screenshot button
+    document.getElementById('capture-screenshot-btn').addEventListener('click', captureScreenshot);
+});
 
 // Timer functions
 let isTimerRunning = false;
