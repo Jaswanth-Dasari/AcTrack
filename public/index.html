@@ -205,7 +205,7 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- <script src="app.js"></script> -->
     <script>
 
         // Function to show modal
@@ -273,10 +273,10 @@
             });
         }
 
-        // Example: Date and Time display
-        setInterval(() => {
-            document.getElementById('date-time').innerText = new Date().toLocaleString();
-        }, 1000);
+        // // Example: Date and Time display
+        // setInterval(() => {
+        //     document.getElementById('date-time').innerText = new Date().toLocaleString();
+        // }, 1000);
 
         // Example: Chart.js for activity graph
         const ctx = document.getElementById('activity-chart').getContext('2d');
@@ -479,7 +479,7 @@ function formatTime(seconds) {
 
 // Capture a screenshot
 function captureScreenshot() {
-    fetch('https://actracker.onrender.com/api/take-screenshot', {
+    fetch('http://localhost:5000/api/take-screenshot', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
