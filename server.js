@@ -209,7 +209,7 @@ app.post('/projects/teams', async (req, res) => {
 });
 
 
-app.post('/api/take-screenshot', async (req, res) => {
+app.post('/take-screenshot', async (req, res) => {
     const userId = req.body.userId || "user123";  // Ideally, get this from authentication
 
     try {
