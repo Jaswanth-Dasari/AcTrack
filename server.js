@@ -412,7 +412,7 @@ app.post('/api/send-invite', async (req, res) => {
         console.log('Received request to send invite to:', email);
 
         // Generate an invitation link (replace with your actual app URL)
-        const inviteLink = `http://localhost:5000/join-team?email=${encodeURIComponent(email)}`;
+        const inviteLink = `http://actracker.onrender.com`;
 
         // Send the email
         await sendEmail(email, inviteLink);

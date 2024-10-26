@@ -478,27 +478,41 @@ function formatTime(seconds) {
 }
 
 // Capture a screenshot
-function captureScreenshot() {
-    fetch('https://actracker.onrender.com/api/take-screenshot', {
+// function captureScreenshot() {
+//     fetch('http://localhost:5000/take-screenshot', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json'
+//         },
+//         body: JSON.stringify({ userId: 'user123' })  // Send the user ID (change as needed)
+//     })
+//     .then(response => response.json())
+//     .then(data => {
+//         if (data.screenshot) {
+//             // Screenshot was successfully saved, now update the recent screenshots
+//             fetchRecentScreenshots();
+//         } else {
+//             console.error('Error:', data.error);
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Error taking screenshot:', error);
+//     });
+// }
+
+async function captureScreenshot(isMobile = false) {
+    const response = await fetch('/api/take-screenshot', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId: 'user123' })  // Send the user ID (change as needed)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.screenshot) {
-            // Screenshot was successfully saved, now update the recent screenshots
-            fetchRecentScreenshots();
-        } else {
-            console.error('Error:', data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error taking screenshot:', error);
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            url: window.location.href, // Capture the current page URL
+            isMobile
+        })
     });
+    const data = await response.json();
+    console.log(data);
 }
+
 
 // // Function to fetch recent screenshots (assumed to be defined elsewhere)
 // function fetchRecentScreenshots() {
