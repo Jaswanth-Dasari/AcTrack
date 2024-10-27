@@ -413,9 +413,10 @@ function startTimer() {
     }, 1000);
 
     // Start capturing screenshots every 10 minutes after starting the timer
-    screenshotInterval = setInterval(captureScreenshot, 6000); // Every 10 minutes
+    screenshotInterval = setInterval(captureScreenshot, 6000); // Every 6 seconds
     startActivityTracking();
 }
+
 
 function stopTimer() {
     if (isTimerRunning) {
@@ -456,6 +457,13 @@ function stopTimer() {
         stopActivityTracking();
     }
 }
+// Call stopTimer when the page unloads (user refreshes or navigates away)
+window.addEventListener('beforeunload', (event) => {
+    stopTimer();
+    stopContinuousScreenshot(); // Stop continuous screenshot capturing
+    // Optionally trigger confirmation dialog on most browsers
+    event.returnValue = ''; // Display a confirmation dialog on certain browsers
+});    
 
 
 function pauseTimer() {
@@ -551,7 +559,7 @@ async function captureScreenshot() {
         }, 'image/png');
     } catch (error) {
         console.error('Error capturing the screen:', error);
-        alert('Screen capture failed: ' + error.message);
+
     }
 }
 
@@ -1037,11 +1045,10 @@ async function startContinuousScreenshot() {
         // Set up an interval to capture screenshots every 6 seconds
         captureInterval = setInterval(() => {
             captureFrame(video); // Capture a frame from the video stream
-        }, 6000); // Capture every 6 seconds
+        },  10000); // Capture every 10 seconds
 
     } catch (error) {
         console.error('Error accessing the screen:', error);
-        alert('Screen capture failed: ' + error.message);
     }
 }
 
