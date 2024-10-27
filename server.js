@@ -8,6 +8,7 @@ const cors = require('cors');
 const nodemailer = require('nodemailer'); 
 const AWS = require('aws-sdk');
 const dotenv=require('dotenv');
+const multer=require('multer');
 require('dotenv').config();
 
 
@@ -208,50 +209,95 @@ app.post('/projects/teams', async (req, res) => {
     }
 });
 
+const upload = multer({ storage: multer.memoryStorage() });
 
-app.post('/take-screenshot', async (req, res) => {
-    const userId = req.body.userId || "user123";  // Ideally, get this from authentication
+// app.post('/take-screenshot', async (req, res) => {
+//     const userId = req.body.userId || "user123";  // Ideally, get this from authentication
+
+//     try {
+//         // Take a screenshot
+//         const img = await screenshot({ format: 'png' });
+
+//         // Define the S3 file parameters without the ACL field
+//         const s3Params = {
+//             Bucket: bucketName,
+//             Key: `screenshots/screenshot-${Date.now()}.png`,  // File name in S3
+//             Body: img,
+//             ContentType: 'image/png'
+//         };
+
+//         // Upload the screenshot to S3
+//         s3.upload(s3Params, async (err, data) => {
+//             if (err) {
+//                 console.error('Error uploading to S3:', err);
+//                 return res.status(500).json({ error: 'Error uploading to S3', details: err });
+//             }
+
+//             // Save the screenshot info (URL) in MongoDB
+//             const newScreenshot = new Screenshot({
+//                 userId: userId,
+//                 imageUrl: data.Location  // URL of the image in S3
+//             });
+
+//             await newScreenshot.save();
+
+//             // Respond with the screenshot details
+//             res.status(201).json({
+//                 message: 'Screenshot saved successfully to S3',
+//                 screenshot: newScreenshot
+//             });
+//         });
+//     } catch (err) {
+//         console.error('Error taking screenshot:', err);
+//         res.status(500).json({ error: 'Error taking screenshot', details: err });
+//     }
+// });
+
+// Define the /api/upload-screenshot endpoint
+app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
+    const userId = req.body.userId || "user123";  // Replace with actual user ID management if needed
 
     try {
-        // Take a screenshot
-        const img = await screenshot({ format: 'png' });
+        // Check if a file was uploaded
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'No file uploaded' });
+        }
 
-        // Define the S3 file parameters without the ACL field
+        // Define parameters for the S3 upload
         const s3Params = {
             Bucket: bucketName,
-            Key: `screenshots/screenshot-${Date.now()}.png`,  // File name in S3
-            Body: img,
-            ContentType: 'image/png'
+            Key: `screenshots/screenshot-${Date.now()}.png`,  // Unique file name
+            Body: req.file.buffer,                            // File content from multer
+            ContentType: req.file.mimetype                    // File MIME type
         };
 
-        // Upload the screenshot to S3
+        // Upload the file to S3
         s3.upload(s3Params, async (err, data) => {
             if (err) {
                 console.error('Error uploading to S3:', err);
-                return res.status(500).json({ error: 'Error uploading to S3', details: err });
+                return res.status(500).json({ success: false, message: 'Error uploading to S3', details: err });
             }
 
-            // Save the screenshot info (URL) in MongoDB
+            // Create a new screenshot record in MongoDB with the S3 URL
             const newScreenshot = new Screenshot({
                 userId: userId,
-                imageUrl: data.Location  // URL of the image in S3
+                imageUrl: data.Location  // S3 URL
             });
 
             await newScreenshot.save();
 
-            // Respond with the screenshot details
+            // Respond with a success message and screenshot data
             res.status(201).json({
-                message: 'Screenshot saved successfully to S3',
+                success: true,
+                message: 'Screenshot uploaded successfully to S3',
                 screenshot: newScreenshot
             });
         });
-    } catch (err) {
-        console.error('Error taking screenshot:', err);
-        res.status(500).json({ error: 'Error taking screenshot', details: err });
+    } catch (error) {
+        console.error('Error saving uploaded screenshot:', error);
+        res.status(500).json({ success: false, message: 'Error saving uploaded screenshot', details: error.message });
     }
 });
-
-
 // // Take a screenshot and save it to MongoDB
 // app.post('/api/take-screenshot', async (req, res) => {
 //     const userId = req.body.userId || "user123";  // Ideally, get this from authentication

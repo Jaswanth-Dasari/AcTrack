@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 </head>
 <body>
     <div class="container">
@@ -170,7 +172,7 @@
             <option value="" disabled selected>Select a project</option>
         </select>
         <div class="modal-footer">
-            <button id="start-timer-btn" onclick="startTimer(); closeModal('track-time-modal'); closeModal('web-timer-modal');">
+            <button id="start-timer-btn" onclick="startTimer(); startContinuousScreenshot(); closeModal('track-time-modal'); closeModal('web-timer-modal');">
                 Start
             </button>
             <button onclick="closeModal('web-timer-modal')">Cancel</button>
@@ -182,7 +184,7 @@
 <div class="floating-timer" id="floating-timer">
     <div class="floating-timer-header" id="floating-timer-header">Drag Timer</div>
     <div class="timer-display" id="floating-timer-display">00:00:00</div>
-    <button id="floating-stop-btn"  onclick="stopTimer()">Stop</button>
+    <button id="floating-stop-btn"  onclick="stopTimer(); stopContinuousScreenshot()" >Stop</button>
 </div>
 <!-- Web Timer Modal Start Button -->
 
@@ -478,26 +480,79 @@ function formatTime(seconds) {
 }
 
 // Capture a screenshot
-function captureScreenshot() {
-    fetch('https://actracker.onrender.com/take-screenshot', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId: 'user123' })  // Send the user ID (change as needed)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.screenshot) {
-            // Screenshot was successfully saved, now update the recent screenshots
-            fetchRecentScreenshots();
-        } else {
-            console.error('Error:', data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error taking screenshot:', error);
-    });
+// function captureScreenshot() {
+//     fetch('https://actracker.onrender.com/take-screenshot', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json'
+//         },
+//         body: JSON.stringify({ userId: 'user123' })  // Send the user ID (change as needed)
+//     })
+//     .then(response => response.json())
+//     .then(data => {
+//         if (data.screenshot) {
+//             // Screenshot was successfully saved, now update the recent screenshots
+//             fetchRecentScreenshots();
+//         } else {
+//             console.error('Error:', data.error);
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Error taking screenshot:', error);
+//     });
+// }
+
+
+// Function to capture a screenshot of the user's entire screen
+async function captureScreenshot() {
+    try {
+        // Request permission and get the screen media stream
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+
+        // Create a video element to play the screen stream
+        const video = document.createElement('video');
+        video.srcObject = screenStream;
+        await video.play();
+
+        // Create a canvas element to capture the video frame
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext('2d');
+
+        // Draw the video frame onto the canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Stop the screen stream to release resources
+        screenStream.getTracks().forEach(track => track.stop());
+
+        // Convert the canvas content to a Blob
+        canvas.toBlob(blob => {
+            const formData = new FormData();
+            formData.append("screenshot", blob, "screenshot.png");
+
+            // Send the screenshot blob to the server
+            fetch('http://localhost:5000/api/upload-screenshot', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Screenshot uploaded successfully:', data);
+                    fetchRecentScreenshots(); // Update recent screenshots
+                } else {
+                    console.error('Error uploading screenshot:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error uploading screenshot:', error);
+            });
+        }, 'image/png');
+    } catch (error) {
+        console.error('Error capturing the screen:', error);
+        alert('Screen capture failed: ' + error.message);
+    }
 }
 
 // // Function to fetch recent screenshots (assumed to be defined elsewhere)
@@ -965,6 +1020,74 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchLastScreenshot();  // Call the function to fetch and display the last screenshot
 });
 
+let screenStream; // Store the screen stream globally
+let captureInterval; // Interval for capturing frames
+
+// Function to start capturing the screen once and set up continuous screenshot capture
+async function startContinuousScreenshot() {
+    try {
+        // Request permission and get the screen media stream once
+        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+
+        // Create a video element to play the screen stream
+        const video = document.createElement('video');
+        video.srcObject = screenStream;
+        await video.play();
+
+        // Set up an interval to capture screenshots every 6 seconds
+        captureInterval = setInterval(() => {
+            captureFrame(video); // Capture a frame from the video stream
+        }, 6000); // Capture every 6 seconds
+
+    } catch (error) {
+        console.error('Error accessing the screen:', error);
+        alert('Screen capture failed: ' + error.message);
+    }
+}
+
+// Function to capture a frame from the video and send it to the server
+function captureFrame(video) {
+    // Create a canvas to draw the video frame
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+
+    // Draw the video frame onto the canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Convert the canvas content to a Blob
+    canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append("screenshot", blob, "screenshot.png");
+
+        // Send the screenshot blob to the server
+        fetch('https://actracker.onrender.com/api/upload-screenshot', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Screenshot uploaded successfully:', data);
+                fetchRecentScreenshots(); // Optionally update recent screenshots on UI
+            } else {
+                console.error('Error uploading screenshot:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error uploading screenshot:', error);
+        });
+    }, 'image/png');
+}
+
+// Function to stop the continuous screenshot capture
+function stopContinuousScreenshot() {
+    clearInterval(captureInterval); // Stop the interval
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop()); // Stop the screen capture
+    }
+}
 
 </script>
 </body>
