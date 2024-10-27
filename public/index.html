@@ -532,7 +532,7 @@ async function captureScreenshot() {
             formData.append("screenshot", blob, "screenshot.png");
 
             // Send the screenshot blob to the server
-            fetch('http://localhost:5000/api/upload-screenshot', {
+            fetch('https://actracker.onrender.com/api/upload-screenshot', {
                 method: 'POST',
                 body: formData
             })
