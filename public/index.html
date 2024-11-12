@@ -40,7 +40,7 @@
             <div class="dashboard-grid">
                 <div class="card">
                     <h3>Worked This Week</h3>
-                    <p id="worked-time">0 hrs 0 mins</p>
+                    <p id="worked-time">Loading...</p>
                 </div>
                 <div class="card">
                     <h3>Last Worked</h3>
@@ -66,6 +66,22 @@
                 <div class="graph-container">
                     <h3>Activity Graph</h3>
                     <canvas id="activity-chart"></canvas>
+                </div>
+                <div class="graph-container">
+                    <h3>Browser Activity</h3>
+                    <div id="browser-activity-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Application</th>
+                                    <th>Time Spent (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="browser-activity-table-body">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -172,7 +188,7 @@
             <option value="" disabled selected>Select a project</option>
         </select>
         <div class="modal-footer">
-            <button id="start-timer-btn" onclick="startTimer(); startContinuousScreenshot(); closeModal('track-time-modal'); closeModal('web-timer-modal');">
+            <button id="start-timer-btn" onclick="startTimer();  closeModal('track-time-modal'); closeModal('web-timer-modal');">
                 Start
             </button>
             <button onclick="closeModal('web-timer-modal')">Cancel</button>
@@ -184,7 +200,7 @@
 <div class="floating-timer" id="floating-timer">
     <div class="floating-timer-header" id="floating-timer-header">Drag Timer</div>
     <div class="timer-display" id="floating-timer-display">00:00:00</div>
-    <button id="floating-stop-btn"  onclick="stopTimer(); stopContinuousScreenshot()" >Stop</button>
+    <button id="floating-stop-btn"  onclick="stopTimer();" >Stop</button>
 </div>
 <!-- Web Timer Modal Start Button -->
 
@@ -281,7 +297,7 @@
         // }, 1000);
 
         // Example: Chart.js for activity graph
-        const ctx = document.getElementById('activity-chart').getContext('2d');
+        // const ctx = document.getElementById('activity-chart').getContext('2d');
         
     fetchProjectCount();
 // });
@@ -413,7 +429,7 @@ function startTimer() {
     }, 1000);
 
     // Start capturing screenshots every 10 minutes after starting the timer
-    screenshotInterval = setInterval(captureScreenshot, 10000); // Every 10 seconds
+    // screenshotInterval = setInterval(captureScreenshot, 10000); // Every 10 seconds
     startActivityTracking();
 }
 
@@ -460,10 +476,11 @@ function stopTimer() {
 // Call stopTimer when the page unloads (user refreshes or navigates away)
 window.addEventListener('beforeunload', (event) => {
     stopTimer();
-    stopContinuousScreenshot(); // Stop continuous screenshot capturing
+    // stopContinuousScreenshot(); // Stop continuous screenshot capturing
     // Optionally trigger confirmation dialog on most browsers
     event.returnValue = ''; // Display a confirmation dialog on certain browsers
 });    
+
 
 
 function pauseTimer() {
@@ -512,56 +529,56 @@ function formatTime(seconds) {
 
 
 // Function to capture a screenshot of the user's entire screen
-async function captureScreenshot() {
-    try {
-        // Request permission and get the screen media stream
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+// async function captureScreenshot() {
+//     try {
+//         // Request permission and get the screen media stream
+//         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
-        // Create a video element to play the screen stream
-        const video = document.createElement('video');
-        video.srcObject = screenStream;
-        await video.play();
+//         // Create a video element to play the screen stream
+//         const video = document.createElement('video');
+//         video.srcObject = screenStream;
+//         await video.play();
 
-        // Create a canvas element to capture the video frame
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const context = canvas.getContext('2d');
+//         // Create a canvas element to capture the video frame
+//         const canvas = document.createElement('canvas');
+//         canvas.width = video.videoWidth;
+//         canvas.height = video.videoHeight;
+//         const context = canvas.getContext('2d');
 
-        // Draw the video frame onto the canvas
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+//         // Draw the video frame onto the canvas
+//         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Stop the screen stream to release resources
-        screenStream.getTracks().forEach(track => track.stop());
+//         // Stop the screen stream to release resources
+//         screenStream.getTracks().forEach(track => track.stop());
 
-        // Convert the canvas content to a Blob
-        canvas.toBlob(blob => {
-            const formData = new FormData();
-            formData.append("screenshot", blob, "screenshot.png");
+//         // Convert the canvas content to a Blob
+//         canvas.toBlob(blob => {
+//             const formData = new FormData();
+//             formData.append("screenshot", blob, "screenshot.png");
 
-            // Send the screenshot blob to the server
-            fetch('https://actracker.onrender.com/api/upload-screenshot', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('Screenshot uploaded successfully:', data);
-                    fetchRecentScreenshots(); // Update recent screenshots
-                } else {
-                    console.error('Error uploading screenshot:', data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error uploading screenshot:', error);
-            });
-        }, 'image/png');
-    } catch (error) {
-        console.error('Error capturing the screen:', error);
+//             // Send the screenshot blob to the server
+//             fetch('https://actracker.onrender.com/api/upload-screenshot', {
+//                 method: 'POST',
+//                 body: formData
+//             })
+//             .then(response => response.json())
+//             .then(data => {
+//                 if (data.success) {
+//                     console.log('Screenshot uploaded successfully:', data);
+//                     fetchRecentScreenshots(); // Update recent screenshots
+//                 } else {
+//                     console.error('Error uploading screenshot:', data.message);
+//                 }
+//             })
+//             .catch(error => {
+//                 console.error('Error uploading screenshot:', error);
+//             });
+//         }, 'image/png');
+//     } catch (error) {
+//         console.error('Error capturing the screen:', error);
 
-    }
-}
+//     }
+// }
 
 // // Function to fetch recent screenshots (assumed to be defined elsewhere)
 // function fetchRecentScreenshots() {
@@ -763,7 +780,7 @@ const projectData = {
 };
     </script>
     <script>
-        let mouseEvents = 0;
+let mouseEvents = 0;
 let keyboardEvents = 0;
 let activityInterval;
 let totalTime = 0;
@@ -824,50 +841,50 @@ function sendActivityData() {
     mouseEvents = 0;
     keyboardEvents = 0;
 }
-function fetchActivityData() {
-    const projectId = document.getElementById('project-select').value;
-    fetch(`https://actracker.onrender.com/api/get-activity/${projectId}`)
-        .then(response => response.json())
-        .then(data => {
-            const labels = data.map(entry => new Date(entry.date).toLocaleTimeString());
-            const mouseUsage = data.map(entry => entry.mouseUsagePercentage);
-            const keyboardUsage = data.map(entry => entry.keyboardUsagePercentage);
+// function fetchActivityData() {
+//     const projectId = document.getElementById('project-select').value;
+//     fetch(`https://actracker.onrender.com/api/get-activity/${projectId}`)
+//         .then(response => response.json())
+//         .then(data => {
+//             const labels = data.map(entry => new Date(entry.date).toLocaleTimeString());
+//             const mouseUsage = data.map(entry => entry.mouseUsagePercentage);
+//             const keyboardUsage = data.map(entry => entry.keyboardUsagePercentage);
 
-            // Create the activity chart
-            const ctx = document.getElementById('activity-chart').getContext('2d');
-            const activityChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels, // Time labels for x-axis
-                    datasets: [{
-                        label: 'Mouse Usage (%)',
-                        data: mouseUsage,
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        borderWidth: 1,
-                        fill: false,
-                    }, {
-                        label: 'Keyboard Usage (%)',
-                        data: keyboardUsage,
-                        borderColor: 'rgba(192, 75, 75, 1)',
-                        borderWidth: 1,
-                        fill: false,
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100, // Limit the y-axis to 100%
-                        }
-                    }
-                }
-            });
-        })
-        .catch(error => console.error('Error fetching activity data:', error));
-}
+//             // Create the activity chart
+//             const ctx = document.getElementById('activity-chart').getContext('2d');
+//             const activityChart = new Chart(ctx, {
+//                 type: 'line',
+//                 data: {
+//                     labels: labels, // Time labels for x-axis
+//                     datasets: [{
+//                         label: 'Mouse Usage (%)',
+//                         data: mouseUsage,
+//                         borderColor: 'rgba(75, 192, 192, 1)',
+//                         borderWidth: 1,
+//                         fill: false,
+//                     }, {
+//                         label: 'Keyboard Usage (%)',
+//                         data: keyboardUsage,
+//                         borderColor: 'rgba(192, 75, 75, 1)',
+//                         borderWidth: 1,
+//                         fill: false,
+//                     }]
+//                 },
+//                 options: {
+//                     scales: {
+//                         y: {
+//                             beginAtZero: true,
+//                             max: 100, // Limit the y-axis to 100%
+//                         }
+//                     }
+//                 }
+//             });
+//         })
+//         .catch(error => console.error('Error fetching activity data:', error));
+// }
 
-// Call this function when the page loads or when a project is selected
-fetchActivityData();
+// // Call this function when the page loads or when a project is selected
+// fetchActivityData();
 
 function fetchWorkedTimeThisWeek() {
     const userId = 'user123'; // Replace with actual user ID
@@ -971,7 +988,7 @@ function createActivityGraph(labels, mouseUsage, keyboardUsage) {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 1000, // Limit the y-axis to 100%
+                    max: 3000, // Limit the y-axis to 100%
                     title: {
                         display: true,
                         text: 'Usage Percentage (%)'
@@ -995,107 +1012,181 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchActivityThisWeek();   // Fetch activity data for the current week and display graph
 });
 // Fetch the most recent screenshot for the user
-function fetchLastScreenshot() {
+// function fetchLastScreenshot() {
+//     const userId = 'user123'; // Replace with actual user ID
+
+//     // Make the API call to fetch the last screenshot
+//     fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`)
+//         .then(response => response.json())  // Parse the response as JSON
+//         .then(data => {
+//             // Check if we received the last screenshot time
+//             if (data.lastScreenshotTime) {
+//                 const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString(); // Format the date
+
+//                 // Update the "Last Worked" section with the formatted date
+//                 document.getElementById('last-project-worked');
+//                 document.getElementById('last-worked-time').innerText = lastScreenshotDate;
+//             } else {
+//                 // Handle case where no screenshot is available
+//                 document.getElementById('last-project-worked').innerText = 'No recent screenshot available.';
+//                 document.getElementById('last-worked-time').innerText = '';
+//             }
+//         })
+//         .catch(error => {
+//             console.error('Error fetching last screenshot:', error);
+//             // Handle errors by displaying an appropriate message
+//             document.getElementById('last-project-worked').innerText = 'Error fetching last screenshot.';
+//             document.getElementById('last-worked-time').innerText = '';
+//         });
+// }
+
+// // Call this function when the page loads to display the last screenshot time
+// document.addEventListener('DOMContentLoaded', () => {
+//     fetchLastScreenshot();  // Call the function to fetch and display the last screenshot
+// });
+async function fetchLastScreenshot() {
     const userId = 'user123'; // Replace with actual user ID
 
-    // Make the API call to fetch the last screenshot
-    fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`)
-        .then(response => response.json())  // Parse the response as JSON
-        .then(data => {
-            // Check if we received the last screenshot time
-            if (data.lastScreenshotTime) {
-                const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString(); // Format the date
+    try {
+        const response = await fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`);
+        const data = await response.json();
 
-                // Update the "Last Worked" section with the formatted date
-                document.getElementById('last-project-worked');
-                document.getElementById('last-worked-time').innerText = lastScreenshotDate;
-            } else {
-                // Handle case where no screenshot is available
-                document.getElementById('last-project-worked').innerText = 'No recent screenshot available.';
-                document.getElementById('last-worked-time').innerText = '';
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching last screenshot:', error);
-            // Handle errors by displaying an appropriate message
-            document.getElementById('last-project-worked').innerText = 'Error fetching last screenshot.';
-            document.getElementById('last-worked-time').innerText = '';
-        });
+        if (data.lastScreenshotTime) {
+            // Format the timestamp for display
+            const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString();
+            document.getElementById('last-worked-time').innerText = lastScreenshotDate;
+        } else {
+            document.getElementById('last-worked-time').innerText = 'No recent screenshot available.';
+        }
+    } catch (error) {
+        console.error('Error fetching last screenshot:', error);
+        document.getElementById('last-worked-time').innerText = 'Error fetching last screenshot.';
+    }
 }
 
-// Call this function when the page loads to display the last screenshot time
-document.addEventListener('DOMContentLoaded', () => {
-    fetchLastScreenshot();  // Call the function to fetch and display the last screenshot
-});
+// Call fetchLastScreenshot on page load
+document.addEventListener('DOMContentLoaded', fetchLastScreenshot);
+// Ensure fetchRecentScreenshots is called after the DOM loads
+window.addEventListener('DOMContentLoaded', fetchRecentScreenshots);
 
 let screenStream; // Store the screen stream globally
 let captureInterval; // Interval for capturing frames
 
 // Function to start capturing the screen once and set up continuous screenshot capture
-async function startContinuousScreenshot() {
-    try {
-        // Request permission and get the screen media stream once
-        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+// async function startContinuousScreenshot() {
+//     try {
+//         // Request permission and get the screen media stream once
+//         screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
-        // Create a video element to play the screen stream
-        const video = document.createElement('video');
-        video.srcObject = screenStream;
-        await video.play();
+//         // Create a video element to play the screen stream
+//         const video = document.createElement('video');
+//         video.srcObject = screenStream;
+//         await video.play();
 
-        // Set up an interval to capture screenshots every 6 seconds
-        captureInterval = setInterval(() => {
-            captureFrame(video); // Capture a frame from the video stream
-        },  10000); // Capture every 10 seconds
+//         // Set up an interval to capture screenshots every 6 seconds
+//         captureInterval = setInterval(() => {
+//             captureFrame(video); // Capture a frame from the video stream
+//         },  10000); // Capture every 10 seconds
 
-    } catch (error) {
-        console.error('Error accessing the screen:', error);
-    }
-}
+//     } catch (error) {
+//         console.error('Error accessing the screen:', error);
+//     }
+// }
 
-// Function to capture a frame from the video and send it to the server
-function captureFrame(video) {
-    // Create a canvas to draw the video frame
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
+// // Function to capture a frame from the video and send it to the server
+// function captureFrame(video) {
+//     // Create a canvas to draw the video frame
+//     const canvas = document.createElement('canvas');
+//     canvas.width = video.videoWidth;
+//     canvas.height = video.videoHeight;
+//     const context = canvas.getContext('2d');
 
-    // Draw the video frame onto the canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+//     // Draw the video frame onto the canvas
+//     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Convert the canvas content to a Blob
-    canvas.toBlob(blob => {
-        const formData = new FormData();
-        formData.append("screenshot", blob, "screenshot.png");
+//     // Convert the canvas content to a Blob
+//     canvas.toBlob(blob => {
+//         const formData = new FormData();
+//         formData.append("screenshot", blob, "screenshot.png");
 
-        // Send the screenshot blob to the server
-        fetch('https://actracker.onrender.com/api/upload-screenshot', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                console.log('Screenshot uploaded successfully:', data);
-                fetchRecentScreenshots(); // Optionally update recent screenshots on UI
-            } else {
-                console.error('Error uploading screenshot:', data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error uploading screenshot:', error);
-        });
-    }, 'image/png');
-}
+//         // Send the screenshot blob to the server
+//         fetch('https://actracker.onrender.com/api/upload-screenshot', {
+//             method: 'POST',
+//             body: formData
+//         })
+//         .then(response => response.json())
+//         .then(data => {
+//             if (data.success) {
+//                 console.log('Screenshot uploaded successfully:', data);
+//                 fetchRecentScreenshots(); // Optionally update recent screenshots on UI
+//             } else {
+//                 console.error('Error uploading screenshot:', data.message);
+//             }
+//         })
+//         .catch(error => {
+//             console.error('Error uploading screenshot:', error);
+//         });
+//     }, 'image/png');
+// }
 
 // Function to stop the continuous screenshot capture
-function stopContinuousScreenshot() {
-    clearInterval(captureInterval); // Stop the interval
-    if (screenStream) {
-        screenStream.getTracks().forEach(track => track.stop()); // Stop the screen capture
-    }
-}
+// function stopContinuousScreenshot() {
+//     clearInterval(captureInterval); // Stop the interval
+//     if (screenStream) {
+//         screenStream.getTracks().forEach(track => track.stop()); // Stop the screen capture
+//     }
+// }
 
-</script>
+
+function updateBrowserActivityTable(activityData = []) {
+        const tableBody = document.getElementById('browser-activity-table-body');
+        tableBody.innerHTML = '';
+    
+        activityData.forEach(activity => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${activity.title}</td>
+                <td>${activity.application}</td>
+                <td>${activity.timeSpentPercentage.toFixed(2)}%</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+
+    async function fetchBrowserActivities() {
+      try {
+        // Fetch data from the backendhttps://actracker.onrender.com
+        const response = await fetch('http://localhost:5000/api/browser-activities');
+        const activities = await response.json();
+
+        // Log fetched data to check if data is retrieved in the frontend
+        console.log('Activities Data:', activities);
+
+        // Reference to the table body
+        const tableBody = document.getElementById('browser-activity-table-body');
+        tableBody.innerHTML = ''; // Clear any existing rows
+
+        // Populate the table with fetched data
+        activities.forEach(activity => {
+          const row = document.createElement('tr');
+
+          row.innerHTML = `
+            <td>${activity.title}</td>
+            <td>${activity.application}</td>
+            <td>${activity.timeSpentPercentage.toFixed(2)}%</td>
+          `;
+
+          tableBody.appendChild(row);
+        });
+      } catch (error) {
+        console.error('Error fetching browser activities:', error);
+      }
+    }
+
+    // Fetch activities on page load
+    document.addEventListener('DOMContentLoaded', fetchBrowserActivities);
+
+    </script>
 </body>
 </html>

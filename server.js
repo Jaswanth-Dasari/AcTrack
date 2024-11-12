@@ -56,6 +56,18 @@ const screenshotSchema = new mongoose.Schema({
     imagePath: String        // Path to the saved screenshot
 });
 
+const browserActivitiesSchema = new mongoose.Schema({
+    userId: String,
+    projectId: String,
+    title: String,
+    application:String,
+    timeSpentPercentage: Number, // Percentage of time spent on the URL during tracking
+    date: { type: Date, default: Date.now }
+});
+
+const BrowserActivities = mongoose.model('browserActivities', browserActivitiesSchema);
+
+
 const Screenshot = mongoose.model('Screenshot', screenshotSchema);
 const Project = mongoose.model('Project', projectSchema);
 
@@ -657,26 +669,53 @@ app.get('/api/activity-this-week/:userId', async (req, res) => {
         res.status(500).json({ message: 'Error fetching activity for this week', details: error.message });
     }
 });
-// Fetch the most recent screenshot for the user
-app.get('/api/last-screenshot/:userId', async (req, res) => {
-    const userId = req.params.userId;
 
+// Endpoint to fetch the most recent 5 records
+app.get('/api/browser-activities', async (req, res) => {
     try {
-        // Find the most recent screenshot for the given user
-        const lastScreenshot = await Screenshot.findOne({ userId: userId })
-            .sort({ timestamp: -1 })  // Sort by most recent screenshot (descending)
-            .exec();
-
-        if (!lastScreenshot) {
-            return res.status(404).json({ message: 'No screenshot found for this user.' });
-        }
-
-        // Return the timestamp of the last screenshot
-        res.status(200).json({
-            lastScreenshotTime: lastScreenshot.timestamp
-        });
-    } catch (error) {
-        console.error('Error fetching last screenshot:', error);
-        res.status(500).json({ message: 'Error fetching last screenshot', details: error.message });
+      const activities = await BrowserActivities.find()
+        .sort({ date: -1 }) // Sort by date in descending order
+        .limit(5); // Limit to 5 records
+  
+      // Log data to confirm it's being retrieved
+      console.log('Fetched Activities:', activities);
+  
+      // Send data to frontend
+      const formattedActivities = activities.map((activity) => ({
+        title: activity.title,
+        application: activity.application,
+        timeSpentPercentage: activity.timeSpentPercentage,
+      }));
+  
+      res.json(formattedActivities);
+    } catch (err) {
+      console.error('Error fetching activities:', err);
+      res.status(500).json({ error: err.message });
     }
+  });
+  app.get('/api/browser-activities', async (req, res) => {
+  try {
+    const activities = await BrowserActivities.find()
+      .sort({ date: -1 }) // Sort by date, descending
+      .limit(5); // Limit to 5 records
+
+    // Log data to confirm it is fetched from MongoDB
+    if (activities.length > 0) {
+      console.log('Fetched Activities:', activities);
+    } else {
+      console.log('No data found in the browseractivities collection');
+    }
+
+    // Send data to frontend
+    const formattedActivities = activities.map((activity) => ({
+      title: activity.title,
+      application: activity.projectId,  // Rename projectId to application
+      timeSpentPercentage: activity.timeSpentPercentage,
+    }));
+
+    res.json(formattedActivities);
+  } catch (err) {
+    console.error('Error fetching activities:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
