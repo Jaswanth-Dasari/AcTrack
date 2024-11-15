@@ -1207,3 +1207,47 @@ h3 {
     font-size: 1.2em;
     color: #333;
 }
+.modal {
+    display: none;
+    position: fixed;
+    top: 0; 
+    left: 0;
+    width: 100%; 
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    align-items: flex-start;  /* Align to the top initially */
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 80%;          /* Medium size: 80% of the screen width */
+    max-width: 700px;    /* Max width for larger screens */
+    max-height: 90vh;    /* Max height for responsive screens */
+    overflow-y: auto;    /* Enable scrolling if content overflows */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    
+    /* Center vertically with equal distance from top and bottom */
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+
+.gallery-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    justify-items: center;
+    margin-bottom: 30%;
+}
+
+.screenshot-item img {
+    width: 100%;
+    height: auto;
+    max-height: 150px;
+    object-fit: cover;
+    border-radius: 4px;
+}

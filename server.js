@@ -9,6 +9,9 @@ const nodemailer = require('nodemailer');
 const AWS = require('aws-sdk');
 const dotenv=require('dotenv');
 const multer=require('multer');
+const bcrypt = require('bcryptjs');
+const session = require('express-session');
+const { v4: uuidv4 } = require('uuid'); // Use UUID for unique userId generation
 require('dotenv').config();
 
 
@@ -68,6 +71,34 @@ const browserActivitiesSchema = new mongoose.Schema({
 const BrowserActivities = mongoose.model('browserActivities', browserActivitiesSchema);
 
 
+const userSchema = new mongoose.Schema({
+    fullName: { type: String, required: true }, // Full name of the user
+    email: { type: String, required: true, unique: true }, // Unique email
+    password: { type: String, required: true }, // Hashed password
+    userId: { type: String, required: true, unique: true }, // Unique userId in the format US0001
+});
+
+userSchema.pre('save', async function (next) {
+    if (this.isNew) {
+        try {
+            const lastUser = await mongoose.model('User').findOne().sort({ userId: -1 }).exec();
+            if (lastUser && lastUser.userId) {
+                const lastId = parseInt(lastUser.userId.slice(2)); // Extract the numeric part
+                this.userId = `US${String(lastId + 1).padStart(4, '0')}`;
+            } else {
+                this.userId = 'US0001'; // Default for the first user
+            }
+        } catch (err) {
+            console.error('Error generating userId:', err);
+            next(err); // Pass the error to the next middleware
+        }
+    }
+    next();
+});
+
+const User = mongoose.model('User', userSchema);
+
+
 const Screenshot = mongoose.model('Screenshot', screenshotSchema);
 const Project = mongoose.model('Project', projectSchema);
 
@@ -78,7 +109,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Add the root route ("/") to serve the "index.html"
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.get('/index', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html')); // Adjust 'public' to the correct folder
 });
 
 // POST endpoint to save a new project
@@ -718,4 +753,165 @@ app.get('/api/browser-activities', async (req, res) => {
     console.error('Error fetching activities:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+
+
+
+
+app.delete('/api/delete-screenshot', async (req, res) => {
+    const { url } = req.body;
+
+    // Log the URL received for verification
+    console.log('URL received for deletion:', url);
+
+    // Extract the key from the S3 URL by removing the bucket domain part
+    const key = url.replace(`https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/`, '');
+
+    // Log the extracted key for verification
+    console.log('Extracted S3 Key:', key);
+
+    // Define the delete parameters for S3, ensuring Key is valid
+    const params = {
+        Bucket: bucketName,
+        Key: key
+    };
+
+    try {
+        // Attempt to delete the object from S3
+        await s3.deleteObject(params).promise();
+        // Also delete the corresponding MongoDB entry
+        await Screenshot.deleteOne({ imageUrl: url });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error deleting screenshot:', error);
+        res.status(500).json({ success: false, message: 'Failed to delete screenshot' });
+    }
+});
+app.use(session({
+    secret: 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false, maxAge: 60000 }
+}));
+app.get('/api/check-session', (req, res) => {
+    if (req.session.user) {
+        res.json({ loggedIn: true, user: req.session.user });
+    } else {
+        res.json({ loggedIn: false });
+    }
+});
+
+
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            console.log('User not found');
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            console.log('Password does not match');
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+
+        // If valid credentials, set session
+        req.session.user = { id: user._id, email: user.email };
+        console.log('Login successful');
+        return res.status(200).json({ message: 'Login successful', redirectUrl: '/index.html' });
+    } catch (err) {
+        console.error('Error during login:', err);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+
+
+// Middleware to protect routes
+const isAuthenticated = (req, res, next) => {
+    if (req.session.user) {
+        return next();
+    }
+    return res.redirect('/login.html'); // Redirect to login if not authenticated
+};
+
+app.use(express.static('public')); // Assuming your HTML files are in the 'public' directory
+
+// Protected Route (e.g., for index.html)
+app.get('/index.html', isAuthenticated, (req, res) => {
+    res.sendFile(__dirname + '/public/index.html');
+});
+
+
+app.post('/api/register', async (req, res) => {
+    const { fullName, email, password } = req.body;
+
+    try {
+        if (!fullName || !email || !password) {
+            return res.status(400).json({ message: 'Full name, email, and password are required' });
+        }
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'Email already in use' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = new User({
+            fullName,
+            email,
+            password: hashedPassword,
+        });
+
+        // Fallback: Generate `userId` if it's not set
+        if (!newUser.userId) {
+            const lastUser = await User.findOne().sort({ userId: -1 }).exec();
+            if (lastUser && lastUser.userId) {
+                const lastId = parseInt(lastUser.userId.slice(2));
+                newUser.userId = `US${String(lastId + 1).padStart(4, '0')}`;
+            } else {
+                newUser.userId = 'US0001';
+            }
+        }
+
+        await newUser.save();
+
+        console.log('New user registered:', newUser);
+        res.status(201).json({ message: 'User registered successfully', userId: newUser.userId });
+    } catch (err) {
+        console.error('Error during registration:', err.message);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+app.get('/api/last-screenshot/:userId', async (req, res) => {
+    try {
+        const params = {
+            Bucket: bucketName,
+            Prefix: 'screenshots/', // Specify the prefix for screenshots
+        };
+
+        // Fetch list of objects in the bucket under the "screenshots/" prefix
+        const data = await s3.listObjectsV2(params).promise();
+
+        if (!data.Contents || data.Contents.length === 0) {
+            return res.status(404).json({ message: 'No screenshots found.' });
+        }
+
+        // Find the latest screenshot by sorting by LastModified
+        const latestScreenshot = data.Contents
+            .sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified))[0]; // Get the most recent item
+
+        res.status(200).json({
+            lastScreenshotTime: latestScreenshot.LastModified // Send timestamp of the latest screenshot
+        });
+    } catch (error) {
+        console.error('Error fetching last screenshot:', error);
+        res.status(500).json({ message: 'Error fetching last screenshot', details: error.message });
+    }
 });
