@@ -1,1321 +1,229 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AcTracker Dashboard</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
-</head>
-<body>
-    <div class="container">
-        <div class="sidebar">
-            <div class="nav-toggle" onclick="toggleSidebar()">
-                <i class="fas fa-chevron-left"></i>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>AcTracker - Login</title>
+		
+		<!-- Favicon -->
+        <!-- <link rel="shortcut icon" href="assets/img/favicon.png"> -->
+		
+		<!-- Fontfamily -->
+		<link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,500;0,700;0,900;1,400;1,500;1,700&display=swap" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script> <!-- Import axios -->
+        
+		<style>
+            /* Basic Reset */
+            * {
+                box-sizing: border-box;
+            }
+    
+            /* Background Gradient */
+            body {
+                font-family: 'Roboto', sans-serif;
+                background: linear-gradient(135deg, #6e8efb, #a777e3);
+                color: #333;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+            }
+    
+            /* Main Wrapper Styling */
+            .login-body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: transparent;
+            }
+    
+            /* Login Box Styling */
+            .loginbox {
+                display: flex;
+                max-width: 800px;
+                width: 100%;
+                background: #fff;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                border-radius: 10px;
+                overflow: hidden;
+            }
+    
+            /* Login Left Image */
+            .login-left {
+                background: #6e8efb;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 40%;
+                padding: 20px;
+                color: #fff;
+            }
+    
+            .login-left img {
+                width: 150px;
+                border-radius: 8px;
+            }
+    
+            /* Login Right Styling */
+            .login-right {
+                width: 60%;
+                padding: 40px;
+            }
+    
+            .login-right h1 {
+                font-size: 2.2em;
+                font-weight: 700;
+                color: #6e8efb;
+                margin-bottom: 10px;
+            }
+    
+            .account-subtitle {
+                color: #555;
+                font-size: 1em;
+                margin-bottom: 30px;
+            }
+    
+            /* Form Fields */
+            .form-group {
+                position: relative;
+                margin-bottom: 20px;
+            }
+    
+            .form-group label {
+                font-weight: 500;
+            }
+    
+            .form-control {
+                height: 45px;
+                border: 1px solid #ddd;
+                padding: 10px 15px;
+                font-size: 1em;
+                border-radius: 5px;
+                transition: all 0.3s;
+            }
+    
+            .form-control:focus {
+                border-color: #6e8efb;
+                box-shadow: 0 0 0 0.2rem rgba(110, 142, 251, 0.25);
+            }
+    
+            /* Icon Styling Inside Input Fields */
+            .profile-views {
+                position: absolute;
+                top: 50%;
+                right: 15px;
+                transform: translateY(-50%);
+                color: #aaa;
+                font-size: 1.2em;
+            }
+    
+            .toggle-password {
+                cursor: pointer;
+            }
+    
+            /* Login Button */
+            .btn-primary {
+                background-color: #6e8efb;
+                border-color: #6e8efb;
+                transition: all 0.3s;
+                font-size: 1em;
+                font-weight: 600;
+            }
+    
+            .btn-primary:hover {
+                background-color: #a777e3;
+                border-color: #a777e3;
+            }
+    
+            /* Register Section */
+            .register-section {
+                margin-top: 20px;
+                text-align: center;
+            }
+    
+            .register-section p {
+                font-size: 1em;
+                color: #555;
+                margin-bottom: 10px;
+            }
+    
+            .register-section a {
+                display: inline-block;
+                text-decoration: none;
+                background: #6e8efb;
+                color: #fff;
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-weight: 600;
+                transition: background-color 0.3s;
+            }
+    
+            .register-section a:hover {
+                background: #a777e3;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Main Wrapper -->
+        <div class="main-wrapper login-body"> 
+            <div class="login-wrapper">
+                <div class="container">
+                    <div class="loginbox">
+                        <div class="login-left">
+                            <img class="img-fluid" src="/assets/login.png" alt="Logo">
+                        </div>
+                        <div class="login-right">
+                            <div class="login-right-wrap">
+                                <h1>Welcome to AcTracker</h1>
+                                <h2>Sign in</h2>
+                                <form id="loginForm" action="/api/dashboard" method="POST">
+                                    <div class="form-group">
+                                        <label>Email <span class="login-danger">*</span></label><br>
+                                        <input class="form-control" type="email" id="email" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Password <span class="login-danger">*</span></label>
+                                        <input class="form-control pass-input" type="password" id="password" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <button class="btn-primary" type="submit">Login</button>
+                                    </div>
+                                </form>
+                                <p id="error-message" style="color: red; display: none;">Invalid credentials, please try again.</p>
+                                <!-- Register Section -->
+                                <div class="register-section">
+                                    <p>Not registered yet?</p>
+                                    <a href="/register.html">Create an Account</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="logo">
-                <h2>AcTracker</h2>
-            </div>
-            <nav>
-                <a href="#" class="nav-item" data-tooltip="Dashboard">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="#" class="nav-item" data-tooltip="Activity">
-                    <i class="fas fa-clock"></i>
-                    <span>Activity</span>
-                </a>
-                <a href="#" class="nav-item" data-tooltip="Screenshots">
-                    <i class="fas fa-camera"></i>
-                    <span>Screenshots</span>
-                </a>
-                <a href="#" class="nav-item" data-tooltip="Settings">
-                    <i class="fas fa-cog"></i>
-                    <span>Settings</span>
-                </a>
-            </nav>
         </div>
+        <!-- /Main Wrapper -->
 
-        <div class="dashboard-content">
-            <header class="dashboard-header">
-                <h1>User Activity Dashboard</h1>
-                <div id="week-range"></div>
-                <div class="action-buttons">
-                    <button onclick="showModal('create-project-modal')">Create a Project</button>
-                    <button onclick="showModal('track-time-modal')">Track Time</button>
-                    <button onclick="showModal('invite-team-modal')">Invite Your Team</button>
-                    <button onclick="showModal('settings-modal')">Settings</button>
-                </div>
-            </header>
-
-            <div class="dashboard-grid">
-                <div class="card">
-                    <h3>Worked This Week</h3>
-                    <p id="worked-time">Loading...</p>
-                </div>
-                <div class="card">
-                    <h3>Last Worked</h3>
-                    <!-- <p id="last-project-worked">Loading..</p> -->
-                    <p id="last-worked-time">Loading...</p>
-                </div>
-                <div class="card">
-                    <h3 > Total Projects Worked</h3>
-                    <p id="projects-worked" >Loading...</p>
-                </div>
-            </div>
-
-            <div class="flex-container">
-                <div class="screenshot-container" id="screenshot-container">
-                    <h3>Recent Screenshots</h3>
-                    <button id="show-screenshots-btn">Show Screenshots</button>
-                    <div class="screenshots" id="recent-screenshots">
-                        <!-- Screenshots will be displayed here -->
-                    </div>
-                </div>
-                <div class="modal" id="screenshot-gallery-modal">
-                    <div class="modal-content">
-                        <span class="close" onclick="closeModal('screenshot-gallery-modal')">&times;</span>
-                        <h2>Screenshot Gallery</h2>
-                        <div id="gallery-container" class="gallery-container"></div>
-                    </div>
-                </div>
+        <script>
+            document.getElementById('loginForm').addEventListener('submit', async function (e) {
+                e.preventDefault(); // Prevent default form submission
                 
-                <!-- Fullscreen View Modal -->
-                <div class="modal" id="fullscreen-modal">
-                    <span class="close" onclick="closeModal('fullscreen-modal')">&times;</span>
-                    <img id="fullscreen-image" src="" alt="Fullscreen Screenshot">
-                </div>
-                
-
-                <div class="graph-container">
-                    <h3>Activity Graph</h3>
-                    <canvas id="activity-chart"></canvas>
-                </div>
-                <div class="graph-container">
-                    <h3>Browser Activity</h3>
-                    <div id="browser-activity-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Title</th>
-                                    <th>Application</th>
-                                    <th>Time Spent (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="browser-activity-table-body">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal Structure -->
-    <div class="modal" id="create-project-modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('create-project-modal')">&times;</span>
-            <h2>Create a Project</h2>
-
-            <!-- Tab Navigation -->
-            <div class="tab-container">
-                <button class="tab-link active" onclick="openTab(event, 'general')">General</button>
-                <button class="tab-link" onclick="openTab(event, 'members')">Members</button>
-                <button class="tab-link" onclick="openTab(event, 'budget-limits')">Budget & Limits</button>
-                <button class="tab-link" onclick="openTab(event, 'teams')">Teams</button>
-            </div>
-
-            <!-- Tab Content -->
-            <div id="general" class="tab-content active">
-                <input type="text" placeholder="Project Name" id="project-name" required>
-                <input type="text" placeholder="Client Name" id="client-name" required>
-                <label>Billable?</label>
-                <input type="checkbox" id="billable">
-                <div class="modal-footer">
-                    <button onclick="openTab(event, 'members')">Next</button>
-                    <button onclick="closeModal('create-project-modal')">Cancel</button>
-                </div>
-            </div>
-
-            <div id="members" class="tab-content ">
-                <input type="search" placeholder="Enter Managers" id="managers">
-                <input type="search" placeholder="Enter Users" id="users">
-                <input type="search" placeholder="Enter Viewers" id="viewers">
-                <div class="modal-footer">
-                    <button onclick="openTab(event, 'budget-limits')">Next</button>
-                    <button onclick="closeModal('create-project-modal')">Cancel</button>
-                </div>
-            </div>
-
-            <div id="budget-limits" class="tab-content ">
-                <label>Type</label>
-                <select id="budget-type">
-                    <option>Total Cost</option>
-                    <option>Total Hours</option>
-                </select>
-
-                <label>Based On</label>
-                <select id="based-on">
-                    <option>Bill Rate</option>
-                    <option>Pay Rate</option>
-                </select>
-
-                <input type="number" placeholder="Cost" id="budget-cost">
-                <div class="modal-footer">
-                    <button onclick="openTab(event, 'teams')">Next</button>
-                    <button onclick="closeModal('create-project-modal')">Cancel</button>
-                </div>
-            </div>
-
-            <div id="teams" class="tab-content">
-                <input type="search" placeholder="Enter Teams" id="teams-search">
-                <div class="modal-footer">
-                    <button onclick="saveDetails()">Save</button>
-                    <button onclick="closeModal('create-project-modal')">Cancel</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Track Time Modal -->
-    <div class="modal" id="track-time-modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('track-time-modal')">&times;</span>
-            <h2>Track Time</h2>
-
-            <!-- Tab Navigation -->
-            <div class="tab-container">
-                <button class="tab-link active" onclick="openTab(event, 'web-timer')">Web Timer</button>
-            </div>
-
-            <!-- Tab Content -->
-            <div id="web-timer" class="tab-content active">
-                <p>Using the web timer in your browser allows you and your team to track time to projects and to-dos. The web timer does not record activity, screenshots, apps, or URLs.</p>
-                <button onclick="showModal('web-timer-modal')">Open Web Timer</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Web Timer Modal (Initial state) -->
-<div class="modal" id="web-timer-modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal('web-timer-modal')">&times;</span>
-        <h2>Web Timer</h2>
-
-        <div class="timer-container">
-            <div class="timer" id="timer-display"></div>
-            <button id="play-pause-btn" class="play-pause-btn" onclick="toggleTimer()"></button>
-        </div>
-
-        <label for="project-select">Select Project:</label>
-        <select id="project-select">
-            <option value="" disabled selected>Select a project</option>
-        </select>
-        <div class="modal-footer">
-            <button id="start-timer-btn" onclick="startTimer();  closeModal('track-time-modal'); closeModal('web-timer-modal');">
-                Start
-            </button>
-            <button onclick="closeModal('web-timer-modal')">Cancel</button>
-        </div>
-        
-    </div>
-</div>
-<!-- Floating Timer Window (Draggable) -->
-<div class="floating-timer" id="floating-timer">
-    <div class="floating-timer-header" id="floating-timer-header">Drag Timer</div>
-    <div class="timer-display" id="floating-timer-display">00:00:00</div>
-    <button id="floating-stop-btn"  onclick="stopTimer();" >Stop</button>
-</div>
-<!-- Web Timer Modal Start Button -->
-
-    <div class="modal" id="invite-team-modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal('invite-team-modal')">&times;</span>
-        <h2>Invite Your Team</h2>
-        <input type="email" id="email-input" placeholder="Team Member Email" required>
-        <button id="send-invite-button" onclick="closeModal('invite-team-modal')">Send Invitation</button>
-    </div>
-</div>
-
-
-    <div class="modal" id="settings-modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('settings-modal')">&times;</span>
-            <h2>Settings</h2>
-            <input type="text" placeholder="Setting Name" required>
-            <button>Save</button>
-        </div>
-    </div>
-    
-    
-    <script>
-    // Open the gallery when "Show Screenshots" button is clicked
-    document.getElementById('show-screenshots-btn').addEventListener('click', () => {
-        fetchScreenshotGallery();
-        showModal('screenshot-gallery-modal');
-    });
-    </script>
-
-    <!-- <script src="app.js"></script> -->
-    <script>
-        // Fetch screenshots and display in the gallery
-async function fetchScreenshotGallery() {
-    try {
-        const response = await fetch('/api/recent-screenshots');
-        const screenshots = await response.json();
-        const galleryContainer = document.getElementById('gallery-container');
-        galleryContainer.innerHTML = ''; // Clear previous content
-
-        screenshots.forEach(screenshot => {
-            const screenshotDiv = document.createElement('div');
-            screenshotDiv.classList.add('screenshot-item');
-            screenshotDiv.innerHTML = `
-                <img src="${screenshot.url}" alt="Screenshot">
-                <p>${new Date(screenshot.timestamp).toLocaleString()}</p>
-                <button onclick="viewScreenshot('${screenshot.url}')">
-                    <i class="fas fa-eye"></i> View
-                </button>
-                <button onclick="confirmDeleteScreenshot('${screenshot.url}')">
-                    <i class="fas fa-trash-alt"></i> Delete
-                </button>
-            `;
-            galleryContainer.appendChild(screenshotDiv);
-        });
-    } catch (error) {
-        console.error('Error loading screenshots:', error);
-    }
-}
-
-// View screenshot in fullscreen mode
-function viewScreenshot(url) {
-    document.getElementById('fullscreen-image').src = url;
-    showModal('fullscreen-modal');
-}
-
-// Confirm and delete a screenshot
-function confirmDeleteScreenshot(url) {
-    if (confirm('Are you sure you want to delete this screenshot?')) {
-        deleteScreenshot(url);
-    }
-}
-
-// Delete screenshot from S3 and refresh gallery
-async function deleteScreenshot(url) {
-    try {
-        const response = await fetch('/api/delete-screenshot', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
-        
-        if (response.ok) {
-            alert('Screenshot deleted successfully!');  // Display success alert
-            fetchScreenshotGallery(); // Refresh gallery after deletion
-        } else {
-            console.error('Failed to delete screenshot');
-            alert('Failed to delete screenshot. Please try again.');
-        }
-    } catch (error) {
-        console.error('Error deleting screenshot:', error);
-        alert('An error occurred while deleting the screenshot.');
-    }
-}
-
-
-
-        // Function to show modal
-        function showModal(modalId) {re
-            document.getElementById(modalId).style.display = 'block';
-        }
-
-        // Function to close modal
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-            resetTimer(); // Reset timer when closing the web timer modal
-        }
-
-        // Function to switch between tabs
-        function openTab(event, tabId) {
-            const tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            
-            document.getElementById(tabId).classList.add('active');
-
-            // Remove active class from all tab buttons
-            const tabLinks = document.querySelectorAll('.tab-link');
-            tabLinks.forEach(link => link.classList.remove('active'));
-
-            // Set clicked tab button as active
-            event.currentTarget.classList.add('active');
-        }
-
-        // Timer functions
-        function toggleTimer() {
-            if (isTimerRunning) {
-                pauseTimer();
-            } else {
-                startTimer();
-            }
-        }
-
-        function saveDetails() {
-            const projectName = document.getElementById('project-name').value;
-            const clientName = document.getElementById('client-name').value;
-            const isBillable = document.getElementById('billable').checked;
-            const managers = document.getElementById('managers').value;
-            const users = document.getElementById('users').value;
-            const viewers = document.getElementById('viewers').value;
-            const budgetType = document.getElementById('budget-type').value;
-            const basedOn = document.getElementById('based-on').value;
-            const cost = document.getElementById('budget-cost').value;
-            const teamsSearch = document.getElementById('teams-search').value;
-
-
-            fetch('https://actracker.onrender.com/projects', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ projectName, clientName, isBillable, managers, users, viewers,budgetType, basedOn, cost ,teamsSearch }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert('Details saved successfully!');
-                closeModal('create-project-modal');
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
-        }
-
-        // // Example: Date and Time display
-        // setInterval(() => {
-        //     document.getElementById('date-time').innerText = new Date().toLocaleString();
-        // }, 1000);
-
-        // Example: Chart.js for activity graph
-        // const ctx = document.getElementById('activity-chart').getContext('2d');
-        
-    fetchProjectCount();
-// });
-
-function fetchProjectCount() {
-    fetch('https://actracker.onrender.com/projects/count')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('projects-worked').innerText = data.count;
-        })
-        .catch(error => {
-            console.error('Error fetching project count:', error);
-        });
-}
-
-    </script>
-    <script>
-
-
-// Function to filter projects based on input
-function filterProjects() {
-    const input = document.getElementById('project-search').value.toLowerCase();
-    const projectList = document.getElementById('project-list');
-    projectList.innerHTML = ''; // Clear previous list
-    if (input.length === 0) {
-        projectList.style.display = 'none'; // Hide list if input is empty
-        return;
-    }
-
-    const filteredProjects = projects.filter(project => project.name.toLowerCase().includes(input));
-    if (filteredProjects.length > 0) {
-        filteredProjects.forEach(project => {
-            const div = document.createElement('div');
-            div.textContent = project.name; // Display project name
-            div.onclick = () => selectProject(project); // Set click handler to select project
-            projectList.appendChild(div);
-        });
-        projectList.style.display = 'block'; // Show filtered project list
-    } else {
-        projectList.style.display = 'none'; // Hide if no matches
-    }
-}
-
-// Function to select a project from the list
-function selectProject(project) {
-    document.getElementById('project-search').value = project.name; // Set input value
-    document.getElementById('project-list').style.display = 'none'; // Hide project list
-}
-
-// Timer functions
-function toggleTimer() {
-    if (isTimerRunning) {
-        pauseTimer();
-    } else {
-        startTimer();
-    }
-}
-
-        let projects = [];
-
-        // Fetch projects from the server and populate the dropdown
-        function fetchProjects() {
-            fetch('https://actracker.onrender.com/projects')
-                .then(response => response.json())
-                .then(data => {
-                    projects = data; // Store projects
-                    const projectSelect = document.getElementById('project-select');
-                    projectSelect.innerHTML = '<option value="" disabled selected>Select a project</option>'; // Clear existing options
-
-                    // Populate dropdown with project names
-                    projects.forEach(project => {
-                        const option = document.createElement('option');
-                        option.value = project._id; // Use project ID as the value
-                        option.textContent = project.projectName; // Display project name
-                        projectSelect.appendChild(option);
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching projects:', error);
-                });
-        }
-
-        // Show modal and fetch projects when opening the web-timer modal
-        function showModal(modalId) {
-            document.getElementById(modalId).style.display = 'block';
-            if (modalId === 'web-timer-modal') {
-                fetchProjects(); // Fetch projects when opening the web-timer modal
-            }
-        }
-
-// Update the event listener for the "Start" button
-document.getElementById('start-timer-btn').addEventListener('click', () => {
-    startTimer();
-});
-
-    </script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-    fetchRecentScreenshots();  // Fetch recent screenshots on page load
-
-    // Add event listener to capture screenshot button
-    document.getElementById('capture-screenshot-btn').addEventListener('click', captureScreenshot);
-});
-
-// Timer functions
-let isTimerRunning = false;
-let timerInterval;
-let screenshotInterval; // New variable for the screenshot interval
-let secondsElapsed = 0;
-
-function startTimer() {
-    const projectSelect = document.getElementById('project-select');
-    const projectId = projectSelect.value;
-
-    if (!projectId) {
-        alert('Please select a project before starting the timer.');
-        return;
-    }
-
-    // Show the floating timer window
-    document.getElementById('floating-timer').style.display = 'block';
-
-    // Start the timer
-    isTimerRunning = true;
-    timerInterval = setInterval(() => {
-        secondsElapsed++;
-        const formattedTime = formatTime(secondsElapsed);
-        document.getElementById('floating-timer-display').innerText = formattedTime; 
-    }, 1000);
-
-    // Start capturing screenshots every 10 minutes after starting the timer
-    // screenshotInterval = setInterval(captureScreenshot, 10000); // Every 10 seconds
-    startActivityTracking();
-}
-
-
-function stopTimer() {
-    if (isTimerRunning) {
-        clearInterval(timerInterval);  // Stop the timer
-        clearInterval(screenshotInterval);  // Stop capturing screenshots
-        isTimerRunning = false;
-
-        const formattedTime = formatTime(secondsElapsed);
-        console.log('Timer Stopped. Time spent: ' + formattedTime);
-
-        // Send the worked time and project info to the backend
-        const projectSelect = document.getElementById('project-select');
-        const projectId = projectSelect.value;
-        const workedTime = secondsElapsed;  // Time in seconds
-
-        fetch('https://actracker.onrender.com/api/save-time-entry', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                userId: 'user123',  // Replace with actual user ID
-                projectId: projectId,
-                workedTime: workedTime
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Time entry saved successfully:', data);
-        })
-        .catch(error => {
-            console.error('Error saving time entry:', error);
-        });
-
-        // Reset timer UI
-        document.getElementById('floating-timer').style.display = 'none';
-        secondsElapsed = 0;
-        stopActivityTracking();
-    }
-}
-// Call stopTimer when the page unloads (user refreshes or navigates away)
-window.addEventListener('beforeunload', (event) => {
-    stopTimer();
-    // stopContinuousScreenshot(); // Stop continuous screenshot capturing
-    // Optionally trigger confirmation dialog on most browsers
-    event.returnValue = ''; // Display a confirmation dialog on certain browsers
-});    
-
-
-
-function pauseTimer() {
-    isTimerRunning = false;
-    document.getElementById('play-pause-btn').innerHTML = '▶️';
-    clearInterval(timerInterval);
-    clearInterval(screenshotInterval);  // Pause screenshot capturing
-}
-
-function resetTimer() {
-    secondsElapsed = 0;
-    document.getElementById('timer-display').innerText = '00:00:00';
-    pauseTimer();
-    document.getElementById('start-timer-btn').disabled = false; // Re-enable start button
-}
-
-function formatTime(seconds) {
-    const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
-    const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-    const secs = String(seconds % 60).padStart(2, '0');
-    return `${hours}:${minutes}:${secs}`;
-}
-
-// Capture a screenshot
-// function captureScreenshot() {
-//     fetch('https://actracker.onrender.com/take-screenshot', {
-//         method: 'POST',
-//         headers: {
-//             'Content-Type': 'application/json'
-//         },
-//         body: JSON.stringify({ userId: 'user123' })  // Send the user ID (change as needed)
-//     })
-//     .then(response => response.json())
-//     .then(data => {
-//         if (data.screenshot) {
-//             // Screenshot was successfully saved, now update the recent screenshots
-//             fetchRecentScreenshots();
-//         } else {
-//             console.error('Error:', data.error);
-//         }
-//     })
-//     .catch(error => {
-//         console.error('Error taking screenshot:', error);
-//     });
-// }
-
-
-// Function to capture a screenshot of the user's entire screen
-// async function captureScreenshot() {
-//     try {
-//         // Request permission and get the screen media stream
-//         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-
-//         // Create a video element to play the screen stream
-//         const video = document.createElement('video');
-//         video.srcObject = screenStream;
-//         await video.play();
-
-//         // Create a canvas element to capture the video frame
-//         const canvas = document.createElement('canvas');
-//         canvas.width = video.videoWidth;
-//         canvas.height = video.videoHeight;
-//         const context = canvas.getContext('2d');
-
-//         // Draw the video frame onto the canvas
-//         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-//         // Stop the screen stream to release resources
-//         screenStream.getTracks().forEach(track => track.stop());
-
-//         // Convert the canvas content to a Blob
-//         canvas.toBlob(blob => {
-//             const formData = new FormData();
-//             formData.append("screenshot", blob, "screenshot.png");
-
-//             // Send the screenshot blob to the server
-//             fetch('https://actracker.onrender.com/api/upload-screenshot', {
-//                 method: 'POST',
-//                 body: formData
-//             })
-//             .then(response => response.json())
-//             .then(data => {
-//                 if (data.success) {
-//                     console.log('Screenshot uploaded successfully:', data);
-//                     fetchRecentScreenshots(); // Update recent screenshots
-//                 } else {
-//                     console.error('Error uploading screenshot:', data.message);
-//                 }
-//             })
-//             .catch(error => {
-//                 console.error('Error uploading screenshot:', error);
-//             });
-//         }, 'image/png');
-//     } catch (error) {
-//         console.error('Error capturing the screen:', error);
-
-//     }
-// }
-
-// // Function to fetch recent screenshots (assumed to be defined elsewhere)
-// function fetchRecentScreenshots() {
-//     fetch('https://actracker.onrender.com/api/recent-screenshots')
-//         .then(response => response.json())
-//         .then(screenshots => {
-//             const screenshotsContainer = document.getElementById('recent-screenshots');
-//             screenshotsContainer.innerHTML = '';  // Clear existing screenshots
-
-//             screenshots.forEach(screenshot => {
-//                 const img = document.createElement('img');
-//                 img.src = screenshot.imagePath;  // Set the image source to the screenshot path
-//                 img.alt = `Screenshot taken at ${new Date(screenshot.timestamp).toLocaleString()}`;
-//                 img.width = 200;  // Set desired width
-//                 img.height = 150;  // Set desired height
-
-//                 screenshotsContainer.appendChild(img);  // Add the image to the container
-//             });
-//         })
-//         .catch(error => {
-//             console.error('Error fetching recent screenshots:', error);
-//         });
-// }
-
-// // Add event listener to the stop button in the floating timer
-// document.getElementById('floating-stop-btn').addEventListener('click', stopTimer);
-
-// Function to fetch recent screenshots from S3 and display them in the container
-function fetchRecentScreenshots() {
-    fetch('/api/recent-screenshots')  // Call the backend endpoint to get the screenshot URLs
-        .then(response => response.json())
-        .then(screenshots => {
-            const screenshotsContainer = document.getElementById('recent-screenshots');
-            screenshotsContainer.innerHTML = '';  // Clear existing screenshots
-
-            // Iterate over the screenshots and create img elements
-            screenshots.forEach(screenshot => {
-                const img = document.createElement('img');
-                img.src = screenshot.url;  // Use the URL from S3
-                img.alt = `Screenshot taken at ${new Date(screenshot.timestamp).toLocaleString()}`;
-                img.width = 200;  // Set the desired width
-                img.height = 150;  // Set the desired height
-
-                screenshotsContainer.appendChild(img);  // Add the image to the container
-            });
-        })
-        .catch(error => {
-            console.error('Error fetching recent screenshots:', error);
-        });
-}
-
-// Call the fetchRecentScreenshots function when the page loads
-document.addEventListener('DOMContentLoaded', fetchRecentScreenshots);
-
-
-    </script>
-    <script>
-// Function to make the floating timer draggable
-function makeDraggable(element, dragHandle) {
-    let posX = 0, posY = 0, mouseX = 0, mouseY = 0;
-
-    dragHandle.onmousedown = dragMouseDown;
-
-    function dragMouseDown(e) {
-        e.preventDefault();
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-        document.onmouseup = closeDragElement;
-        document.onmousemove = elementDrag;
-    }
-
-    function elementDrag(e) {
-        e.preventDefault();
-        posX = mouseX - e.clientX;
-        posY = mouseY - e.clientY;
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-        element.style.top = (element.offsetTop - posY) + "px";
-        element.style.left = (element.offsetLeft - posX) + "px";
-    }
-
-    function closeDragElement() {
-        document.onmouseup = null;
-        document.onmousemove = null;
-    }
-}
-// Add event listener to the stop button in the floating timer
-document.getElementById('floating-stop-btn').addEventListener('click', stopTimer);
-
-// Make the floating timer draggable
-makeDraggable(document.getElementById('floating-timer'), document.getElementById('floating-timer-header'));
-
-
-// // Add event listener to the "Send Invitation" button
-// document.getElementById('send-invite-button').addEventListener('click', sendInvitation);
-    // Wait until the DOM is fully loaded
-    document.addEventListener('DOMContentLoaded', function() {
-        // Add event listener to the "Send Invitation" button
-        document.getElementById('send-invite-button').addEventListener('click', sendInvitation);
-    });
-
-    // Function to send email invitation
-    function sendInvitation() {
-        console.log('Send invite function triggered');
-        const email = document.getElementById('email-input').value;
-
-        // Basic email validation
-        if (!email || !validateEmail(email)) {
-            alert('Please enter a valid email address');
-            return;
-        }
-
-        // Send invitation email via API
-        fetch('https://actracker.onrender.com/api/send-invite', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email: email })
-        })
-        .then(response => {
-            if (!response.ok) {
-                // Handle response error (status not 200-299)
-                return response.json().then(data => {
-                    throw new Error(data.message || 'Failed to send invitation');
-                });
-            }
-            return response.json();  // Parse response as JSON
-        })
-        .then(data => {
-            alert(data.message);  // Show success message
-        })
-        .catch(error => {
-            console.error('Error:', error);  // Handle any fetch errors
-            alert('Error sending invitation: ' + error.message);
-        });
-    }
-
-    // Function to validate email format (simple regex for basic validation)
-    function validateEmail(email) {
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return re.test(String(email).toLowerCase());
-    }
-
-function getWeekRange() {
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 (Sunday) to 6 (Saturday)
-    const startDate = new Date(now); // Clone current date
-    startDate.setDate(now.getDate() - dayOfWeek); // Go to Sunday
-
-    const endDate = new Date(startDate); // Clone start date
-    endDate.setDate(startDate.getDate() + 6); // Go to Saturday
-
-    const options = { 
-        weekday: 'short', // Add weekday
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric' // Add year
-    };
-    
-    // Format start date
-    const startFormatted = startDate.toLocaleDateString('en-US', options);
-    
-    // For end date, we only need to show the year if it's different from the start date
-    const endOptions = { 
-        weekday: 'short',
-        month: 'short', 
-        day: 'numeric'
-    };
-    if (startDate.getFullYear() !== endDate.getFullYear()) {
-        endOptions.year = 'numeric';
-    }
-    const endFormatted = endDate.toLocaleDateString('en-US', endOptions);
-
-    return `${startFormatted} - ${endFormatted}`;
-}
-
-function updateWeekRange() {
-    const weekRangeElement = document.getElementById('week-range');
-    if (weekRangeElement) {
-        weekRangeElement.textContent = getWeekRange();
-    }
-}
-
-// Call this function when the page loads
-document.addEventListener('DOMContentLoaded', updateWeekRange);
-
-const projectData = {
-    projectName: document.getElementById('projectName').value,
-    clientName: document.getElementById('clientName').value,
-    isBillable: document.getElementById('isBillable').checked, // Assuming this is a checkbox
-    managers: document.getElementById('managers').value, // Comma-separated string
-    users: document.getElementById('users').value, // Comma-separated string
-    viewers: document.getElementById('viewers').value, // Comma-separated string
-    budgetType: document.getElementById('budgetType').value,
-    basedOn: document.getElementById('basedOn').value,
-    cost: document.getElementById('cost').value,
-    teamsSearch: document.getElementById('teamsSearch').value // Assuming teams are input here
-};
-    </script>
-    <script>
-let mouseEvents = 0;
-let keyboardEvents = 0;
-let activityInterval;
-let totalTime = 0;
-
-// Add event listeners for mouse and keyboard activity
-document.addEventListener('mousemove', () => mouseEvents++);
-document.addEventListener('keydown', () => keyboardEvents++);
-
-// Start tracking activity when the timer starts
-function startActivityTracking() {
-    mouseEvents = 0;
-    keyboardEvents = 0;
-    totalTime = 0;
-
-    // Track every second
-    activityInterval = setInterval(() => {
-        totalTime++; // Track total time in seconds
-
-        // Periodically (e.g., every minute) send the data to the server
-        if (totalTime % 60 === 0) {
-            sendActivityData();
-        }
-
-    }, 1000); // 1-second interval
-}
-
-// Stop tracking activity
-function stopActivityTracking() {
-    clearInterval(activityInterval);
-    sendActivityData(); // Send the final activity data
-}
-
-// Function to calculate percentages and send activity data to the server
-function sendActivityData() {
-    const mouseUsagePercentage = (mouseEvents / totalTime) * 100;
-    const keyboardUsagePercentage = (keyboardEvents / totalTime) * 100;
-
-    fetch('https://actracker.onrender.com/api/save-activity', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            userId: 'user123', // Replace with actual user ID
-            projectId: document.getElementById('project-select').value,
-            mouseEvents: mouseEvents,
-            keyboardEvents: keyboardEvents,
-            totalTime: totalTime,
-            mouseUsagePercentage: mouseUsagePercentage.toFixed(2),
-            keyboardUsagePercentage: keyboardUsagePercentage.toFixed(2),
-        }),
-    })
-    .then(response => response.json())
-    .then(data => console.log('Activity data saved:', data))
-    .catch(error => console.error('Error saving activity data:', error));
-
-    // Reset mouse and keyboard event counts for the next interval
-    mouseEvents = 0;
-    keyboardEvents = 0;
-}
-// function fetchActivityData() {
-//     const projectId = document.getElementById('project-select').value;
-//     fetch(`https://actracker.onrender.com/api/get-activity/${projectId}`)
-//         .then(response => response.json())
-//         .then(data => {
-//             const labels = data.map(entry => new Date(entry.date).toLocaleTimeString());
-//             const mouseUsage = data.map(entry => entry.mouseUsagePercentage);
-//             const keyboardUsage = data.map(entry => entry.keyboardUsagePercentage);
-
-//             // Create the activity chart
-//             const ctx = document.getElementById('activity-chart').getContext('2d');
-//             const activityChart = new Chart(ctx, {
-//                 type: 'line',
-//                 data: {
-//                     labels: labels, // Time labels for x-axis
-//                     datasets: [{
-//                         label: 'Mouse Usage (%)',
-//                         data: mouseUsage,
-//                         borderColor: 'rgba(75, 192, 192, 1)',
-//                         borderWidth: 1,
-//                         fill: false,
-//                     }, {
-//                         label: 'Keyboard Usage (%)',
-//                         data: keyboardUsage,
-//                         borderColor: 'rgba(192, 75, 75, 1)',
-//                         borderWidth: 1,
-//                         fill: false,
-//                     }]
-//                 },
-//                 options: {
-//                     scales: {
-//                         y: {
-//                             beginAtZero: true,
-//                             max: 100, // Limit the y-axis to 100%
-//                         }
-//                     }
-//                 }
-//             });
-//         })
-//         .catch(error => console.error('Error fetching activity data:', error));
-// }
-
-// // Call this function when the page loads or when a project is selected
-// fetchActivityData();
-
-function fetchWorkedTimeThisWeek() {
-    const userId = 'user123'; // Replace with actual user ID
-
-    fetch(`https://actracker.onrender.com/api/total-worked-time-this-week/${userId}`)
-        .then(response => response.json())
-        .then(data => {
-            const totalSeconds = data.totalWorkedSeconds;
-            const formattedTime = formatTime(totalSeconds); // Convert seconds to hours, minutes, and seconds
-
-            // Update the "Worked This Week" container with the formatted time
-            document.getElementById('worked-time').innerText = formattedTime;
-        })
-        .catch(error => {
-            console.error('Error fetching worked time for this week:', error);
-        });
-}
-
-// Utility function to format time in HH:MM:SS
-function formatTime(totalSeconds) {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    return `${hours} hrs ${minutes} mins ${seconds} secs`;
-}
-
-// Fetch the worked time when the page loads
-document.addEventListener('DOMContentLoaded', () => {
-    fetchRecentScreenshots();  // Existing call to fetch recent screenshots
-    fetchWorkedTimeThisWeek(); // Fetch total worked time for this week
-});
-// Fetch activity data for the current week
-function fetchActivityThisWeek() {
-    const userId = 'user123'; // Replace with actual user ID
-
-    fetch(`https://actracker.onrender.com/api/activity-this-week/${userId}`)
-        .then(response => response.json())
-        .then(data => {
-            // Parse the activity data and prepare it for the chart
-            const labels = getWeekDays(); // Get labels for the current week (Sunday to Saturday)
-            const mouseUsage = new Array(7).fill(0); // Initialize with zeros for each day
-            const keyboardUsage = new Array(7).fill(0);
-
-            // Populate the mouse and keyboard usage data
-            data.forEach(entry => {
-                const dayIndex = new Date(entry.date).getDay(); // Get the day index (0 = Sunday, 6 = Saturday)
-                mouseUsage[dayIndex] = entry.mouseUsagePercentage;  // Assign mouse usage percentage to the corresponding day
-                keyboardUsage[dayIndex] = entry.keyboardUsagePercentage; // Assign keyboard usage percentage to the corresponding day
-            });
-
-            // Create the activity graph
-            createActivityGraph(labels, mouseUsage, keyboardUsage);
-        })
-        .catch(error => {
-            console.error('Error fetching activity data for this week:', error);
-        });
-}
-
-// Function to get labels for the days of the current week (Sunday to Saturday)
-function getWeekDays() {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const now = new Date();
-    const currentDay = now.getDay();
-
-    // Generate labels from Sunday to Saturday
-    const weekDays = [];
-    for (let i = 0; i < 7; i++) {
-        const dayIndex = (currentDay + i) % 7; // Wrap around the week
-        weekDays.push(days[dayIndex]);
-    }
-    return days;
-}
-
-// Function to create the activity graph using Chart.js
-function createActivityGraph(labels, mouseUsage, keyboardUsage) {
-    const ctx = document.getElementById('activity-chart').getContext('2d');
-
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels, // The days of the week
-            datasets: [
-                {
-                    label: 'Mouse Usage (%)',
-                    data: mouseUsage, // Mouse usage percentage 
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1,
-                    fill: false
-                },
-                {
-                    label: 'Keyboard Usage (%)',
-                    data: keyboardUsage, // Keyboard usage percentage
-                    borderColor: 'rgba(192, 75, 75, 1)',
-                    borderWidth: 1,
-                    fill: false
-                }
-            ]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 3000, // Limit the y-axis to 100%
-                    title: {
-                        display: true,
-                        text: 'Usage Percentage (%)'
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                try {
+                    const response = await axios.post('/api/dashboard', { email, password });
+                    if (response.status === 200) {
+                        // Redirect on successful login
+                        window.location.href = response.data.redirectUrl;
                     }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Days of the Week'
-                    }
+                } catch (error) {
+                    // Display error message
+                    document.getElementById('error-message').style.display = 'block';
+                    document.getElementById('error-message').textContent = error.response.data.message || 'Login failed.';
                 }
-            }
-        }
-    });
-}
-
-// Fetch the activity data when the page loads
-document.addEventListener('DOMContentLoaded', () => {
-    fetchRecentScreenshots();  // Existing call to fetch recent screenshots
-    fetchWorkedTimeThisWeek(); // Fetch total worked time for this week
-    fetchActivityThisWeek();   // Fetch activity data for the current week and display graph
-});
-// Fetch the most recent screenshot for the user
-// function fetchLastScreenshot() {
-//     const userId = 'user123'; // Replace with actual user ID
-
-//     // Make the API call to fetch the last screenshot
-//     fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`)
-//         .then(response => response.json())  // Parse the response as JSON
-//         .then(data => {
-//             // Check if we received the last screenshot time
-//             if (data.lastScreenshotTime) {
-//                 const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString(); // Format the date
-
-//                 // Update the "Last Worked" section with the formatted date
-//                 document.getElementById('last-project-worked');
-//                 document.getElementById('last-worked-time').innerText = lastScreenshotDate;
-//             } else {
-//                 // Handle case where no screenshot is available
-//                 document.getElementById('last-project-worked').innerText = 'No recent screenshot available.';
-//                 document.getElementById('last-worked-time').innerText = '';
-//             }
-//         })
-//         .catch(error => {
-//             console.error('Error fetching last screenshot:', error);
-//             // Handle errors by displaying an appropriate message
-//             document.getElementById('last-project-worked').innerText = 'Error fetching last screenshot.';
-//             document.getElementById('last-worked-time').innerText = '';
-//         });
-// }
-
-// // Call this function when the page loads to display the last screenshot time
-// document.addEventListener('DOMContentLoaded', () => {
-//     fetchLastScreenshot();  // Call the function to fetch and display the last screenshot
-// });
-async function fetchLastScreenshot() {
-    const userId = 'user123'; // Replace with actual user ID
-
-    try {
-        const response = await fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`);
-        const data = await response.json();
-
-        if (data.lastScreenshotTime) {
-            // Format the timestamp for display
-            const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString();
-            document.getElementById('last-worked-time').innerText = lastScreenshotDate;
-        } else {
-            document.getElementById('last-worked-time').innerText = 'No recent screenshot available.';
-        }
-    } catch (error) {
-        console.error('Error fetching last screenshot:', error);
-        document.getElementById('last-worked-time').innerText = 'Error fetching last screenshot.';
-    }
-}
-
-// Call fetchLastScreenshot on page load
-document.addEventListener('DOMContentLoaded', fetchLastScreenshot);
-// Ensure fetchRecentScreenshots is called after the DOM loads
-window.addEventListener('DOMContentLoaded', fetchRecentScreenshots);
-
-let screenStream; // Store the screen stream globally
-let captureInterval; // Interval for capturing frames
-
-// Function to start capturing the screen once and set up continuous screenshot capture
-// async function startContinuousScreenshot() {
-//     try {
-//         // Request permission and get the screen media stream once
-//         screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-
-//         // Create a video element to play the screen stream
-//         const video = document.createElement('video');
-//         video.srcObject = screenStream;
-//         await video.play();
-
-//         // Set up an interval to capture screenshots every 6 seconds
-//         captureInterval = setInterval(() => {
-//             captureFrame(video); // Capture a frame from the video stream
-//         },  10000); // Capture every 10 seconds
-
-//     } catch (error) {
-//         console.error('Error accessing the screen:', error);
-//     }
-// }
-
-// // Function to capture a frame from the video and send it to the server
-// function captureFrame(video) {
-//     // Create a canvas to draw the video frame
-//     const canvas = document.createElement('canvas');
-//     canvas.width = video.videoWidth;
-//     canvas.height = video.videoHeight;
-//     const context = canvas.getContext('2d');
-
-//     // Draw the video frame onto the canvas
-//     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-//     // Convert the canvas content to a Blob
-//     canvas.toBlob(blob => {
-//         const formData = new FormData();
-//         formData.append("screenshot", blob, "screenshot.png");
-
-//         // Send the screenshot blob to the server
-//         fetch('https://actracker.onrender.com/api/upload-screenshot', {
-//             method: 'POST',
-//             body: formData
-//         })
-//         .then(response => response.json())
-//         .then(data => {
-//             if (data.success) {
-//                 console.log('Screenshot uploaded successfully:', data);
-//                 fetchRecentScreenshots(); // Optionally update recent screenshots on UI
-//             } else {
-//                 console.error('Error uploading screenshot:', data.message);
-//             }
-//         })
-//         .catch(error => {
-//             console.error('Error uploading screenshot:', error);
-//         });
-//     }, 'image/png');
-// }
-
-// Function to stop the continuous screenshot capture
-// function stopContinuousScreenshot() {
-//     clearInterval(captureInterval); // Stop the interval
-//     if (screenStream) {
-//         screenStream.getTracks().forEach(track => track.stop()); // Stop the screen capture
-//     }
-// }
-
-
-function updateBrowserActivityTable(activityData = []) {
-        const tableBody = document.getElementById('browser-activity-table-body');
-        tableBody.innerHTML = '';
-    
-        activityData.forEach(activity => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${activity.title}</td>
-                <td>${activity.application}</td>
-                <td>${activity.timeSpentPercentage.toFixed(2)}%</td>
-            `;
-            tableBody.appendChild(row);
-        });
-    }
-
-
-    async function fetchBrowserActivities() {
-      try {
-        // Fetch data from the backendhttps://actracker.onrender.com
-        const response = await fetch('https://actracker.onrender.com/api/browser-activities');
-        const activities = await response.json();
-
-        // Log fetched data to check if data is retrieved in the frontend
-        console.log('Activities Data:', activities);
-
-        // Reference to the table body
-        const tableBody = document.getElementById('browser-activity-table-body');
-        tableBody.innerHTML = ''; // Clear any existing rows
-
-        // Populate the table with fetched data
-        activities.forEach(activity => {
-          const row = document.createElement('tr');
-
-          row.innerHTML = `
-            <td>${activity.title}</td>
-            <td>${activity.application}</td>
-            <td>${activity.timeSpentPercentage.toFixed(2)}%</td>
-          `;
-
-          tableBody.appendChild(row);
-        });
-      } catch (error) {
-        console.error('Error fetching browser activities:', error);
-      }
-    }
-
-    // Fetch activities on page load
-    document.addEventListener('DOMContentLoaded', fetchBrowserActivities);
-
-
-    function toggleSidebar() {
-    const sidebar = document.querySelector('.sidebar');
-    const content = document.querySelector('.dashboard-content');
-    
-    sidebar.classList.toggle('collapsed');
-    content.classList.toggle('collapsed');
-    
-    // Store the state in localStorage
-    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
-    
-}
-const bcrypt = require('bcrypt');
-
-// Test password hashing
-async function testHash() {
-    const plainPassword = 'test123';
-    const hashedPassword = await bcrypt.hash(plainPassword, 10);
-
-    console.log('Plain password:', plainPassword);
-    console.log('Hashed password:', hashedPassword);
-
-    const isMatch = await bcrypt.compare('test123', hashedPassword);
-    console.log('Password match:', isMatch);
-}
-
-testHash();
-
-    </script>
-
-</body>
+            });
+        </script>
+    </body>
 </html>

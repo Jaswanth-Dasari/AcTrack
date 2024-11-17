@@ -109,7 +109,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Add the root route ("/") to serve the "index.html"
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
 app.get('/index', (req, res) => {
@@ -803,7 +803,7 @@ app.get('/api/check-session', (req, res) => {
 });
 
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/dashboard', async (req, res) => {
     const { email, password } = req.body;
 
     try {
@@ -822,7 +822,7 @@ app.post('/api/login', async (req, res) => {
         // If valid credentials, set session
         req.session.user = { id: user._id, email: user.email };
         console.log('Login successful');
-        return res.status(200).json({ message: 'Login successful', redirectUrl: '/index.html' });
+        return res.status(200).json({ message: 'Login successful', redirectUrl: '/dashboard.html' });
     } catch (err) {
         console.error('Error during login:', err);
         return res.status(500).json({ message: 'Internal server error' });
@@ -836,7 +836,7 @@ const isAuthenticated = (req, res, next) => {
     if (req.session.user) {
         return next();
     }
-    return res.redirect('/login.html'); // Redirect to login if not authenticated
+    return res.redirect('/dashboard.html'); // Redirect to login if not authenticated
 };
 
 app.use(express.static('public')); // Assuming your HTML files are in the 'public' directory

@@ -169,7 +169,7 @@
                     });
                     console.log('User registered successfully:', response.data);
                     alert('Registration successful! You can now log in.');
-                    window.location.href = '/login.html'; // Redirect to login page
+                    window.location.href = '/index.html'; // Redirect to login page
                 } catch (err) {
                     console.error('Registration failed:', err.response?.data || err.message);
                     document.getElementById('error-message').style.display = 'block';
