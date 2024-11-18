@@ -302,7 +302,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Define the /api/upload-screenshot endpoint
 app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
-    const userId = req.body.userId || "user123";  // Replace with actual user ID management if needed
+    const userId = req.body.userId ;  // Replace with actual user ID management if needed
 
     try {
         // Check if a file was uploaded

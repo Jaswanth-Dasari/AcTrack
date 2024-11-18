@@ -209,8 +209,16 @@
 
             <!-- Tab Content -->
             <div id="web-timer" class="tab-content active">
-                <p>Using the web timer in your browser allows you and your team to track time to projects and to-dos. The web timer does not record activity, screenshots, apps, or URLs.</p>
+                <p>
+                    Using the Desktop timer in your system allows you and your team to track time to projects and capture Screenshots. 
+                    The web timer does not record activity, screenshots, apps, or URLs.
+                </p>
                 <button onclick="showModal('web-timer-modal')">Open Web Timer</button>
+                
+                <!-- Button to download the desktop version -->
+                <a href="https://drive.google.com/file/d/1uayk9ROYGR9R2Urr0k7Pda64tAgC_CDT/view?usp=sharing" class="download-button">
+                    <button>Download Desktop Time Tracker</button>
+                </a>
             </div>
         </div>
     </div>
@@ -1164,7 +1172,7 @@ async function fetchLastScreenshot() {
     const userId = 'user123'; // Replace with actual user ID
 
     try {
-        const response = await fetch(`http://localhost:5000/api/last-screenshot/${userId}`);
+        const response = await fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`);
         const data = await response.json();
 
         if (data.lastScreenshotTime) {

@@ -207,23 +207,23 @@
 
         <script>
             document.getElementById('loginForm').addEventListener('submit', async function (e) {
-                e.preventDefault(); // Prevent default form submission
-                
+                e.preventDefault();
+        
                 const email = document.getElementById('email').value;
                 const password = document.getElementById('password').value;
-
+        
                 try {
                     const response = await axios.post('/api/dashboard', { email, password });
                     if (response.status === 200) {
-                        // Redirect on successful login
-                        window.location.href = response.data.redirectUrl;
+                        window.location.href = response.data.redirectUrl; // Redirect to dashboard
                     }
                 } catch (error) {
-                    // Display error message
                     document.getElementById('error-message').style.display = 'block';
-                    document.getElementById('error-message').textContent = error.response.data.message || 'Login failed.';
+                    document.getElementById('error-message').textContent =
+                        error.response?.data?.message || 'Login failed.';
                 }
             });
         </script>
+        
     </body>
 </html>
