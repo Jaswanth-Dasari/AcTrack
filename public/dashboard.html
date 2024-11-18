@@ -256,12 +256,12 @@
 <!-- Web Timer Modal Start Button -->
 
     <div class="modal" id="invite-team-modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal('invite-team-modal')">&times;</span>
-        <h2>Invite Your Team</h2>
-        <input type="email" id="email-input" placeholder="Team Member Email" required>
-        <button id="send-invite-button" onclick="closeModal('invite-team-modal')">Send Invitation</button>
-    </div>
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('invite-team-modal')">&times;</span>
+            <h2>Invite Your Team</h2>
+            <input type="email" id="email-input" placeholder="Team Member Email" required>
+            <button id="send-invite-button" onclick="closeModal('invite-team-modal')">Send Invitation</button>
+        </div>
 </div>
 
 
@@ -358,7 +358,7 @@ async function deleteScreenshot(url) {
         // Function to close modal
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
-            resetTimer(); // Reset timer when closing the web timer modal
+            // resetTimer(); // Reset timer when closing the web timer modal
         }
 
         // Function to switch between tabs
@@ -924,9 +924,9 @@ function startActivityTracking() {
         totalTime++; // Track total time in seconds
 
         // Periodically (e.g., every minute) send the data to the server
-        if (totalTime % 60 === 0) {
-            sendActivityData();
-        }
+        // if (totalTime % 60 === 0) {
+        //     sendActivityData();
+        // }
 
     }, 1000); // 1-second interval
 }
