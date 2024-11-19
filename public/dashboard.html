@@ -358,7 +358,7 @@ async function deleteScreenshot(url) {
         // Function to close modal
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
-            // resetTimer(); // Reset timer when closing the web timer modal
+            //  resetTimer(); // Reset timer when closing the web timer modal
         }
 
         // Function to switch between tabs
@@ -376,14 +376,7 @@ async function deleteScreenshot(url) {
             event.currentTarget.classList.add('active');
         }
 
-        // Timer functions
-        function toggleTimer() {
-            if (isTimerRunning) {
-                pauseTimer();
-            } else {
-                startTimer();
-            }
-        }
+     
 
         function saveDetails() {
             const projectName = document.getElementById('project-name').value;
@@ -526,11 +519,68 @@ document.getElementById('start-timer-btn').addEventListener('click', () => {
     document.getElementById('capture-screenshot-btn').addEventListener('click', captureScreenshot);
 });
 
-// Timer functions
-let isTimerRunning = false;
-let timerInterval;
-let screenshotInterval; // New variable for the screenshot interval
+let mouseEvents = 0;
+let keyboardEvents = 0;
+let totalTime = 0;
+let activityInterval = null; 
+let isTimerRunning = false; 
+let timerInterval = null;
+let screenshotInterval = null; 
 let secondsElapsed = 0;
+
+function startActivityTracking() {
+    if (activityInterval) {
+        clearInterval(activityInterval); // Ensure no duplicate intervals
+    }
+
+    // Reset counters for a new session
+    mouseEvents = 0;
+    keyboardEvents = 0;
+    totalTime = 0;
+
+    // Start tracking activity
+    activityInterval = setInterval(() => {
+        totalTime++;
+        // console.log(`Activity Tracker: ${totalTime} seconds`);
+    }, 1000); // Runs every second
+}
+
+function stopActivityTracking() {
+    if (activityInterval) {
+        clearInterval(activityInterval);
+        activityInterval = null;
+    }
+    sendActivityData(); // Send final activity data
+}
+
+function sendActivityData() {
+    if (totalTime > 0) {
+        const mouseUsagePercentage = (mouseEvents / totalTime) * 100;
+        const keyboardUsagePercentage = (keyboardEvents / totalTime) * 100;
+
+        fetch('https://actracker.onrender.com/api/save-activity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: 'user123', // Replace with actual user ID
+                projectId: document.getElementById('project-select').value,
+                mouseEvents: mouseEvents,
+                keyboardEvents: keyboardEvents,
+                totalTime: totalTime,
+                mouseUsagePercentage: mouseUsagePercentage.toFixed(2),
+                keyboardUsagePercentage: keyboardUsagePercentage.toFixed(2),
+            }),
+        })
+        .then(response => response.json())
+        .then(data => console.log('Activity data saved:', data))
+        .catch(error => console.error('Error saving activity data:', error));
+    }
+
+    // Reset for the next session
+    mouseEvents = 0;
+    keyboardEvents = 0;
+    totalTime = 0;
+}
 
 function startTimer() {
     const projectSelect = document.getElementById('project-select');
@@ -541,62 +591,84 @@ function startTimer() {
         return;
     }
 
-    // Show the floating timer window
-    document.getElementById('floating-timer').style.display = 'block';
+    if (!isTimerRunning) {
+        isTimerRunning = true;
 
-    // Start the timer
-    isTimerRunning = true;
-    timerInterval = setInterval(() => {
-        secondsElapsed++;
-        const formattedTime = formatTime(secondsElapsed);
-        document.getElementById('floating-timer-display').innerText = formattedTime; 
-    }, 1000);
+        // Show floating timer UI
+        document.getElementById('floating-timer').style.display = 'block';
 
-    // Start capturing screenshots every 10 minutes after starting the timer
-    // screenshotInterval = setInterval(captureScreenshot, 10000); // Every 10 seconds
-    startActivityTracking();
+        // Start tracking time
+        timerInterval = setInterval(() => {
+            secondsElapsed++;
+            const formattedTime = formatTime(secondsElapsed);
+            document.getElementById('floating-timer-display').innerText = formattedTime;
+            // console.log(`Timer: ${formattedTime}`);
+        }, 1000);
+
+        // Start activity tracking
+        startActivityTracking();
+
+        // Optional: Start capturing screenshots every 10 minutes
+        // screenshotInterval = setInterval(captureScreenshot, 600000); // 10 minutes
+    }
 }
-
 
 function stopTimer() {
     if (isTimerRunning) {
-        clearInterval(timerInterval);  // Stop the timer
-        clearInterval(screenshotInterval);  // Stop capturing screenshots
         isTimerRunning = false;
+
+        // Stop timer and activity tracking
+        clearInterval(timerInterval);
+        clearInterval(screenshotInterval);
+        stopActivityTracking();
 
         const formattedTime = formatTime(secondsElapsed);
         console.log('Timer Stopped. Time spent: ' + formattedTime);
 
-        // Send the worked time and project info to the backend
+        // Send worked time to backend
         const projectSelect = document.getElementById('project-select');
         const projectId = projectSelect.value;
-        const workedTime = secondsElapsed;  // Time in seconds
+        const workedTime = secondsElapsed;
 
         fetch('https://actracker.onrender.com/api/save-time-entry', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId: 'user123',  // Replace with actual user ID
+                userId: 'user123', // Replace with actual user ID
                 projectId: projectId,
-                workedTime: workedTime
-            })
+                workedTime: workedTime,
+            }),
         })
         .then(response => response.json())
-        .then(data => {
-            console.log('Time entry saved successfully:', data);
-        })
-        .catch(error => {
-            console.error('Error saving time entry:', error);
-        });
+        .then(data => console.log('Time entry saved successfully:', data))
+        .catch(error => console.error('Error saving time entry:', error));
 
         // Reset timer UI
         document.getElementById('floating-timer').style.display = 'none';
         secondsElapsed = 0;
-        stopActivityTracking();
+        resetTimer();
     }
 }
+
+function resetTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    if (activityInterval) clearInterval(activityInterval);
+    timerInterval = null;
+    activityInterval = null;
+    secondsElapsed = 0;
+    totalTime = 0;
+    isTimerRunning = false;
+}
+
+// Helper to format time into HH:MM:SS
+function formatTime(seconds) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+
 // Call stopTimer when the page unloads (user refreshes or navigates away)
 window.addEventListener('beforeunload', (event) => {
     stopTimer();
@@ -614,19 +686,7 @@ function pauseTimer() {
     clearInterval(screenshotInterval);  // Pause screenshot capturing
 }
 
-function resetTimer() {
-    secondsElapsed = 0;
-    document.getElementById('timer-display').innerText = '00:00:00';
-    pauseTimer();
-    document.getElementById('start-timer-btn').disabled = false; // Re-enable start button
-}
 
-function formatTime(seconds) {
-    const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
-    const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-    const secs = String(seconds % 60).padStart(2, '0');
-    return `${hours}:${minutes}:${secs}`;
-}
 
 // Capture a screenshot
 // function captureScreenshot() {
@@ -904,67 +964,15 @@ const projectData = {
 };
     </script>
     <script>
-let mouseEvents = 0;
-let keyboardEvents = 0;
-let activityInterval;
-let totalTime = 0;
 
 // Add event listeners for mouse and keyboard activity
 document.addEventListener('mousemove', () => mouseEvents++);
 document.addEventListener('keydown', () => keyboardEvents++);
 
+
+
 // Start tracking activity when the timer starts
-function startActivityTracking() {
-    mouseEvents = 0;
-    keyboardEvents = 0;
-    totalTime = 0;
 
-    // Track every second
-    activityInterval = setInterval(() => {
-        totalTime++; // Track total time in seconds
-
-        // Periodically (e.g., every minute) send the data to the server
-        // if (totalTime % 60 === 0) {
-        //     sendActivityData();
-        // }
-
-    }, 1000); // 1-second interval
-}
-
-// Stop tracking activity
-function stopActivityTracking() {
-    clearInterval(activityInterval);
-    sendActivityData(); // Send the final activity data
-}
-
-// Function to calculate percentages and send activity data to the server
-function sendActivityData() {
-    const mouseUsagePercentage = (mouseEvents / totalTime) * 100;
-    const keyboardUsagePercentage = (keyboardEvents / totalTime) * 100;
-
-    fetch('https://actracker.onrender.com/api/save-activity', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            userId: 'user123', // Replace with actual user ID
-            projectId: document.getElementById('project-select').value,
-            mouseEvents: mouseEvents,
-            keyboardEvents: keyboardEvents,
-            totalTime: totalTime,
-            mouseUsagePercentage: mouseUsagePercentage.toFixed(2),
-            keyboardUsagePercentage: keyboardUsagePercentage.toFixed(2),
-        }),
-    })
-    .then(response => response.json())
-    .then(data => console.log('Activity data saved:', data))
-    .catch(error => console.error('Error saving activity data:', error));
-
-    // Reset mouse and keyboard event counts for the next interval
-    mouseEvents = 0;
-    keyboardEvents = 0;
-}
 // function fetchActivityData() {
 //     const projectId = document.getElementById('project-select').value;
 //     fetch(`https://actracker.onrender.com/api/get-activity/${projectId}`)
