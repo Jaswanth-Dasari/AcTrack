@@ -728,32 +728,32 @@ app.get('/api/browser-activities', async (req, res) => {
       res.status(500).json({ error: err.message });
     }
   });
-  app.get('/api/browser-activities', async (req, res) => {
-  try {
-    const activities = await BrowserActivities.find()
-      .sort({ date: -1 }) // Sort by date, descending
-      .limit(5); // Limit to 5 records
+//   app.get('/api/browser-activities', async (req, res) => {
+//   try {
+//     const activities = await BrowserActivities.find()
+//       .sort({ date: -1 }) // Sort by date, descending
+//       .limit(5); // Limit to 5 records
 
-    // Log data to confirm it is fetched from MongoDB
-    if (activities.length > 0) {
-      console.log('Fetched Activities:', activities);
-    } else {
-      console.log('No data found in the browseractivities collection');
-    }
+//     // Log data to confirm it is fetched from MongoDB
+//     if (activities.length > 0) {
+//       console.log('Fetched Activities:', activities);
+//     } else {
+//       console.log('No data found in the browseractivities collection');
+//     }
 
-    // Send data to frontend
-    const formattedActivities = activities.map((activity) => ({
-      title: activity.title,
-      application: activity.projectId,  // Rename projectId to application
-      timeSpentPercentage: activity.timeSpentPercentage,
-    }));
+//     // Send data to frontend
+//     const formattedActivities = activities.map((activity) => ({
+//       title: activity.title,
+//       application: activity.projectId,  // Rename projectId to application
+//       timeSpentPercentage: activity.timeSpentPercentage,
+//     }));
 
-    res.json(formattedActivities);
-  } catch (err) {
-    console.error('Error fetching activities:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+//     res.json(formattedActivities);
+//   } catch (err) {
+//     console.error('Error fetching activities:', err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 
 
