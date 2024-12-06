@@ -534,30 +534,49 @@ app.get('/projects/count', async (req, res) => {
 const timeEntrySchema = new mongoose.Schema({
     userId: String,
     projectId: String,   // ID of the project
-    workedTime: Number,  // Time in seconds
+    workedTime: {
+        hours: Number,    // Hours worked
+        minutes: Number,  // Minutes worked
+        seconds: Number   // Seconds worked
+    },
     date: { type: Date, default: Date.now } // Automatically adds date when the entry is created
 });
 
 const TimeEntry = mongoose.model('TimeEntry', timeEntrySchema);
+
+// Helper function to convert seconds to hours, minutes, and seconds
+function convertSecondsToHMSS(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    
+    return { hours, minutes, seconds: remainingSeconds };
+}
+
 // POST endpoint to save time entry for a project
 app.post('/api/save-time-entry', async (req, res) => {
-    const { userId, projectId, workedTime } = req.body;
+    const { userId, projectId, workedTimeInSeconds } = req.body; // workedTimeInSeconds is in seconds
 
     try {
+        // Convert workedTime from seconds to hours, minutes, and seconds
+        const { hours, minutes, seconds } = convertSecondsToHMSS(workedTimeInSeconds);
+
         const newTimeEntry = new TimeEntry({
             userId: userId,
             projectId: projectId,
-            workedTime: workedTime
+            workedTime: { hours, minutes, seconds },  // Store in the format { hours, minutes, seconds }
+            date: new Date() // Current date and time
         });
 
         const savedTimeEntry = await newTimeEntry.save();
-        res.status(201).json(savedTimeEntry);
+        res.status(201).json(savedTimeEntry); // Return the saved entry
     } catch (error) {
         console.error('Error saving time entry:', error);
         res.status(500).json({ error: 'Error saving time entry', details: error.message });
     }
 });
-// Example: Update when starting the timer
+
+
 // Example: Update when starting the timer
 app.post('/start-timer', async (req, res) => {
     const { projectId } = req.body;
@@ -889,29 +908,36 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-app.get('/api/last-screenshot/:userId', async (req, res) => {
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+app.get('/api/last-worked-time/:userId', async (req, res) => {
     try {
-        const params = {
-            Bucket: bucketName,
-            Prefix: 'screenshots/', // Specify the prefix for screenshots
-        };
+        const { userId } = req.params;
 
-        // Fetch list of objects in the bucket under the "screenshots/" prefix
-        const data = await s3.listObjectsV2(params).promise();
+        // Fetch the latest TimeEntry for the user, sorted by date (descending)
+        const latestTimeEntry = await TimeEntry.findOne({ userId })
+            .sort({ date: -1 }) // Sort by date descending (latest first)
+            .exec();
 
-        if (!data.Contents || data.Contents.length === 0) {
-            return res.status(404).json({ message: 'No screenshots found.' });
+        if (!latestTimeEntry) {
+            return res.status(404).json({ message: 'No time entries found for this user.' });
         }
 
-        // Find the latest screenshot by sorting by LastModified
-        const latestScreenshot = data.Contents
-            .sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified))[0]; // Get the most recent item
+        // Convert workedTime (seconds) to HH:mm:ss format
+        const formattedWorkedTime = formatTime(latestTimeEntry.workedTime);
 
         res.status(200).json({
-            lastScreenshotTime: latestScreenshot.LastModified // Send timestamp of the latest screenshot
+            workedTime: formattedWorkedTime,
+            date: new Date(latestTimeEntry.date).toLocaleString() // Return the formatted date
         });
     } catch (error) {
-        console.error('Error fetching last screenshot:', error);
-        res.status(500).json({ message: 'Error fetching last screenshot', details: error.message });
+        console.error('Error fetching last worked time:', error);
+        res.status(500).json({ message: 'Error fetching last worked time', details: error.message });
     }
 });
