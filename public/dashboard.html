@@ -73,12 +73,9 @@
                     <p id="worked-time">Loading...</p>
                 </div>
                 <div class="card">
-                    <h3>Last Worked For</h3>
+                    <h3>Last Worked</h3>
+                    <!-- <p id="last-project-worked">Loading..</p> -->
                     <p id="last-worked-time">Loading...</p>
-                </div>
-                <div class="card">
-                    <h3>Last Worked Date</h3>
-                    <p id="last-worked-date">Loading...</p>
                 </div>
                 <div class="card">
                     <h3 > Total Projects Worked</h3>
@@ -315,40 +312,6 @@ async function fetchScreenshotGallery() {
         console.error('Error loading screenshots:', error);
     }
 }
-
-async function fetchLastWorkedTime() {
-    const userId = 'user123'; // Replace with actual user ID
-
-    try {
-        const response = await fetch(`https://actracker.onrender.com/api/last-worked-time/${userId}`);
-        const data = await response.json();
-
-        console.log('Response from backend:', data);
-
-        if (data.message) {
-            console.error('Error from backend:', data.message);
-            document.getElementById('last-worked-time').innerText = 'No recent worked time available.';
-            document.getElementById('last-worked-date').innerText = 'N/A';
-            return;
-        }
-
-        if (data.workedTime && data.date) {
-            document.getElementById('last-worked-time').innerText = `Worked Time: ${data.workedTime}`;
-            document.getElementById('last-worked-date').innerText = `Date: ${data.date}`;
-        } else {
-            document.getElementById('last-worked-time').innerText = 'No recent worked time available.';
-            document.getElementById('last-worked-date').innerText = 'N/A';
-        }
-    } catch (error) {
-        console.error('Error fetching last worked time:', error);
-        document.getElementById('last-worked-time').innerText = 'Error fetching last worked time.';
-        document.getElementById('last-worked-date').innerText = 'Error fetching last worked date.';
-    }
-}
-
-// Call fetchLastWorkedTime on page load
-document.addEventListener('DOMContentLoaded', fetchLastWorkedTime);
-
 
 // View screenshot in fullscreen mode
 function viewScreenshot(url) {
