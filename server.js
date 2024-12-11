@@ -534,49 +534,30 @@ app.get('/projects/count', async (req, res) => {
 const timeEntrySchema = new mongoose.Schema({
     userId: String,
     projectId: String,   // ID of the project
-    workedTime: {
-        hours: Number,    // Hours worked
-        minutes: Number,  // Minutes worked
-        seconds: Number   // Seconds worked
-    },
+    workedTime: Number,  // Time in seconds
     date: { type: Date, default: Date.now } // Automatically adds date when the entry is created
 });
 
 const TimeEntry = mongoose.model('TimeEntry', timeEntrySchema);
-
-// Helper function to convert seconds to hours, minutes, and seconds
-function convertSecondsToHMSS(seconds) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    
-    return { hours, minutes, seconds: remainingSeconds };
-}
-
 // POST endpoint to save time entry for a project
 app.post('/api/save-time-entry', async (req, res) => {
-    const { userId, projectId, workedTimeInSeconds } = req.body; // workedTimeInSeconds is in seconds
+    const { userId, projectId, workedTime } = req.body;
 
     try {
-        // Convert workedTime from seconds to hours, minutes, and seconds
-        const { hours, minutes, seconds } = convertSecondsToHMSS(workedTimeInSeconds);
-
         const newTimeEntry = new TimeEntry({
             userId: userId,
             projectId: projectId,
-            workedTime: { hours, minutes, seconds },  // Store in the format { hours, minutes, seconds }
-            date: new Date() // Current date and time
+            workedTime: workedTime
         });
 
         const savedTimeEntry = await newTimeEntry.save();
-        res.status(201).json(savedTimeEntry); // Return the saved entry
+        res.status(201).json(savedTimeEntry);
     } catch (error) {
         console.error('Error saving time entry:', error);
         res.status(500).json({ error: 'Error saving time entry', details: error.message });
     }
 });
-
-
+// Example: Update when starting the timer
 // Example: Update when starting the timer
 app.post('/start-timer', async (req, res) => {
     const { projectId } = req.body;
@@ -908,34 +889,33 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// app.get('/api/last-screenshot/:userId', async (req, res) => {
-//     try {
-//         const params = {
-//             Bucket: bucketName,
-//             Prefix: 'screenshots/', // Specify the prefix for screenshots
-//         };
+app.get('/api/last-screenshot/:userId', async (req, res) => {
+    try {
+        const params = {
+            Bucket: bucketName,
+            Prefix: 'screenshots/', // Specify the prefix for screenshots
+        };
 
-//         // Fetch list of objects in the bucket under the "screenshots/" prefix
-//         const data = await s3.listObjectsV2(params).promise();
+        // Fetch list of objects in the bucket under the "screenshots/" prefix
+        const data = await s3.listObjectsV2(params).promise();
 
-//         if (!data.Contents || data.Contents.length === 0) {
-//             return res.status(404).json({ message: 'No screenshots found.' });
-//         }
+        if (!data.Contents || data.Contents.length === 0) {
+            return res.status(404).json({ message: 'No screenshots found.' });
+        }
 
-//         // Find the latest screenshot by sorting by LastModified
-//         const latestScreenshot = data.Contents
-//             .sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified))[0]; // Get the most recent item
+        // Find the latest screenshot by sorting by LastModified
+        const latestScreenshot = data.Contents
+            .sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified))[0]; // Get the most recent item
 
-//         res.status(200).json({
-//             lastScreenshotTime: latestScreenshot.LastModified // Send timestamp of the latest screenshot
-//         });
-//     } catch (error) {
-//         console.error('Error fetching last screenshot:', error);
-//         res.status(500).json({ message: 'Error fetching last screenshot', details: error.message });
-//     }
-// });
+        res.status(200).json({
+            lastScreenshotTime: latestScreenshot.LastModified // Send timestamp of the latest screenshot
+        });
+    } catch (error) {
+        console.error('Error fetching last screenshot:', error);
+        res.status(500).json({ message: 'Error fetching last screenshot', details: error.message });
+    }
+});
 
-// Helper function to format seconds into HH:mm:ss
 function formatTime(seconds) {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -968,5 +948,43 @@ app.get('/api/last-worked-time/:userId', async (req, res) => {
     } catch (error) {
         console.error('Error fetching last worked time:', error);
         res.status(500).json({ message: 'Error fetching last worked time', details: error.message });
+    }
+});
+
+
+app.post('/api/browser-activities', async (req, res) => {
+    const activities = req.body.activities;
+
+    // Validate that activities is an array
+    if (!Array.isArray(activities)) {
+        console.error('Error: activities is not an array');
+        return res.status(400).json({ error: 'Invalid data format: activities should be an array' });
+    }
+
+    try {
+        for (let activity of activities) {
+            const { userId, projectId, title, application, timeSpentPercentage } = activity;
+
+            if (!userId || !projectId || !title || !application || timeSpentPercentage == null) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            // Create a new activity document
+            const activityDoc = new browserActivities({
+                userId,
+                projectId,
+                title,
+                application,
+                timeSpentPercentage,
+            });
+
+            // Save the activity document in the database
+            await activityDoc.save();
+        }
+
+        res.status(201).json({ message: 'Activities saved successfully' });
+    } catch (error) {
+        console.error('Error saving activity:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
