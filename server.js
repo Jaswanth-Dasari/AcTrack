@@ -534,46 +534,30 @@ app.get('/projects/count', async (req, res) => {
 const timeEntrySchema = new mongoose.Schema({
     userId: String,
     projectId: String,   // ID of the project
-    workedTime: {
-        hours: Number,    // Hours worked
-        minutes: Number,  // Minutes worked
-        seconds: Number   // Seconds worked
-    },
+    workedTime: Number,  // Time in seconds
     date: { type: Date, default: Date.now } // Automatically adds date when the entry is created
 });
 
 const TimeEntry = mongoose.model('TimeEntry', timeEntrySchema);
-
-// Helper function to convert seconds to hours, minutes, and seconds
-function convertSecondsToHMSS(seconds) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    
-    return { hours, minutes, seconds: remainingSeconds };
-}
-
 // POST endpoint to save time entry for a project
 app.post('/api/save-time-entry', async (req, res) => {
-    const { userId, projectId, workedTimeInSeconds } = req.body; // workedTimeInSeconds is in seconds
+    const { userId, projectId, workedTime } = req.body;
 
     try {
-        // Create a new time entry and save it
         const newTimeEntry = new TimeEntry({
             userId: userId,
             projectId: projectId,
-            workedTime: workedTimeInSeconds,  // Store time in seconds
-            date: new Date().toISOString()  // Save date in ISO format (UTC)
+            workedTime: workedTime
         });
 
         const savedTimeEntry = await newTimeEntry.save();
-        res.status(201).json(savedTimeEntry); // Return the saved entry
+        res.status(201).json(savedTimeEntry);
     } catch (error) {
         console.error('Error saving time entry:', error);
         res.status(500).json({ error: 'Error saving time entry', details: error.message });
     }
 });
-
+// Example: Update when starting the timer
 // Example: Update when starting the timer
 app.post('/start-timer', async (req, res) => {
     const { projectId } = req.body;
@@ -685,7 +669,7 @@ app.get('/api/total-worked-time-this-week/:userId', async (req, res) => {
             date: { $gte: startOfWeek, $lte: endOfWeek } // Filter time entries between Sunday and Saturday
         });
 
-        // Sum up the total worked time in seconds
+        // Sum up the total worked time (in seconds)
         const totalWorkedSeconds = timeEntries.reduce((acc, entry) => acc + entry.workedTime, 0);
 
         res.status(200).json({ totalWorkedSeconds });
@@ -694,8 +678,32 @@ app.get('/api/total-worked-time-this-week/:userId', async (req, res) => {
         res.status(500).json({ message: 'Error fetching worked time for the week', details: error.message });
     }
 });
+app.get('/api/activity-this-week/:userId', async (req, res) => {
+    const userId = req.params.userId;
 
+    try {
+        // Get the start and end of the current week (Sunday to Saturday)
+        const now = new Date();
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())); // Get Sunday of this week
+        startOfWeek.setHours(0, 0, 0, 0); // Set to midnight
 
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(endOfWeek.getDate() + 6); // Set to Saturday
+        endOfWeek.setHours(23, 59, 59, 999); // Set to end of the day
+
+        // Fetch user activity for the current week
+        const activityThisWeek = await UserActivity.find({
+            userId: userId,
+            date: { $gte: startOfWeek, $lte: endOfWeek }
+        }).sort({ date: 1 }); // Sort by date to get activities from Sunday to Saturday
+
+        // Send activity data to the frontend
+        res.status(200).json(activityThisWeek);
+    } catch (error) {
+        console.error('Error fetching activity for this week:', error);
+        res.status(500).json({ message: 'Error fetching activity for this week', details: error.message });
+    }
+});
 
 // Endpoint to fetch the most recent 5 records
 app.get('/api/browser-activities', async (req, res) => {
@@ -882,42 +890,41 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// app.get('/api/last-screenshot/:userId', async (req, res) => {
-//     try {
-//         const params = {
-//             Bucket: bucketName,
-//             Prefix: 'screenshots/', // Specify the prefix for screenshots
-//         };
+app.get('/api/last-screenshot/:userId', async (req, res) => {
+    try {
+        const params = {
+            Bucket: bucketName,
+            Prefix: 'screenshots/', // Specify the prefix for screenshots
+        };
 
-//         // Fetch list of objects in the bucket under the "screenshots/" prefix
-//         const data = await s3.listObjectsV2(params).promise();
+        // Fetch list of objects in the bucket under the "screenshots/" prefix
+        const data = await s3.listObjectsV2(params).promise();
 
-//         if (!data.Contents || data.Contents.length === 0) {
-//             return res.status(404).json({ message: 'No screenshots found.' });
-//         }
+        if (!data.Contents || data.Contents.length === 0) {
+            return res.status(404).json({ message: 'No screenshots found.' });
+        }
 
-//         // Find the latest screenshot by sorting by LastModified
-//         const latestScreenshot = data.Contents
-//             .sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified))[0]; // Get the most recent item
+        // Find the latest screenshot by sorting by LastModified
+        const latestScreenshot = data.Contents
+            .sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified))[0]; // Get the most recent item
 
-//         res.status(200).json({
-//             lastScreenshotTime: latestScreenshot.LastModified // Send timestamp of the latest screenshot
-//         });
-//     } catch (error) {
-//         console.error('Error fetching last screenshot:', error);
-//         res.status(500).json({ message: 'Error fetching last screenshot', details: error.message });
-//     }
-// });
+        res.status(200).json({
+            lastScreenshotTime: latestScreenshot.LastModified // Send timestamp of the latest screenshot
+        });
+    } catch (error) {
+        console.error('Error fetching last screenshot:', error);
+        res.status(500).json({ message: 'Error fetching last screenshot', details: error.message });
+    }
+});
 
-// Utility function to format time in HH:MM:SS
-function formatTime(totalSeconds) {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
 
-    return `${hours} hrs ${minutes} mins ${seconds} secs`;
+    // Ensure double digits for hours, minutes, and seconds (e.g., "01:09:08")
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
-
 
 app.get('/api/last-worked-time/:userId', async (req, res) => {
     try {

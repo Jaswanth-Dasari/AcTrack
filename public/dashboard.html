@@ -73,8 +73,9 @@
                     <p id="worked-time">Loading...</p>
                 </div>
                 <div class="card">
-                    <h3>Last Worked </h3>
-                    <p id="last-worked-date">Loading...</p>
+                    <h3>Last Worked</h3>
+                    <!-- <p id="last-project-worked">Loading..</p> -->
+                    <p id="last-worked-time">Loading...</p>
                 </div>
                 <div class="card">
                     <h3 > Total Projects Worked</h3>
@@ -215,7 +216,7 @@
                 <button onclick="showModal('web-timer-modal')">Open Web Timer</button>
                 
                 <!-- Button to download the desktop version -->
-                <a href="https://drive.google.com/file/d/1aZcxuess1gxvpYEV_YiPX4VCrapiWO3S/view?usp=sharing" class="download-button">
+                <a href="https://drive.google.com/file/d/1aR88wnC4F58RNkeutXeSGARRjiIhuM98/view?usp=sharing" class="download-button">
                     <button>Download Desktop Time Tracker</button>
                 </a>
             </div>
@@ -659,15 +660,13 @@ function resetTimer() {
     isTimerRunning = false;
 }
 
-// Utility function to format time in HH:MM:SS
-function formatTime(totalSeconds) {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    return `${hours} hrs ${minutes} mins ${seconds} secs`;
+// Helper to format time into HH:MM:SS
+function formatTime(seconds) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
-
 
 
 // Call stopTimer when the page unloads (user refreshes or navigates away)
@@ -1177,60 +1176,28 @@ document.addEventListener('DOMContentLoaded', () => {
 // document.addEventListener('DOMContentLoaded', () => {
 //     fetchLastScreenshot();  // Call the function to fetch and display the last screenshot
 // });
-// async function fetchLastScreenshot() {
-//     const userId = 'user123'; // Replace with actual user ID
-
-//     try {
-//         const response = await fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`);
-//         const data = await response.json();
-
-//         if (data.lastScreenshotTime) {
-//             // Format the timestamp for display
-//             const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString();
-//             document.getElementById('last-worked-time').innerText = lastScreenshotDate;
-//         } else {
-//             document.getElementById('last-worked-time').innerText = 'No recent screenshot available.';
-//         }
-//     } catch (error) {
-//         console.error('Error fetching last screenshot:', error);
-//         document.getElementById('last-worked-time').innerText = 'Error fetching last screenshot.';
-//     }
-// }
-
-// // Call fetchLastScreenshot on page load
-// document.addEventListener('DOMContentLoaded', fetchLastScreenshot);
-
-async function fetchLastWorkedTime() {
+async function fetchLastScreenshot() {
     const userId = 'user123'; // Replace with actual user ID
 
     try {
-        const response = await fetch(`http://localhost:5002/api/last-worked-time/${userId}`);
+        const response = await fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`);
         const data = await response.json();
 
-        console.log('Response from backend:', data);
-
-        if (data.message) {
-            console.error('Error from backend:', data.message);
-            document.getElementById('last-worked-date').innerText = 'N/A';
-            return;
-        }
-
-        if (data.workedTime && data.date) {
-            // Convert the UTC date from the backend to the local time zone
-            const localDate = new Date(data.date).toLocaleString();  // Converts UTC to local time
-            document.getElementById('last-worked-date').innerText = `${localDate}`;
+        if (data.lastScreenshotTime) {
+            // Format the timestamp for display
+            const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString();
+            document.getElementById('last-worked-time').innerText = lastScreenshotDate;
         } else {
-            document.getElementById('last-worked-date').innerText = 'N/A';
+            document.getElementById('last-worked-time').innerText = 'No recent screenshot available.';
         }
     } catch (error) {
-        console.error('Error fetching last worked time:', error);
-        document.getElementById('last-worked-date').innerText = 'Error fetching last worked date.';
+        console.error('Error fetching last screenshot:', error);
+        document.getElementById('last-worked-time').innerText = 'Error fetching last screenshot.';
     }
 }
 
-// Call fetchLastWorkedTime on page load
-document.addEventListener('DOMContentLoaded', fetchLastWorkedTime);
-
+// Call fetchLastScreenshot on page load
+document.addEventListener('DOMContentLoaded', fetchLastScreenshot);
 // Ensure fetchRecentScreenshots is called after the DOM loads
 window.addEventListener('DOMContentLoaded', fetchRecentScreenshots);
 
