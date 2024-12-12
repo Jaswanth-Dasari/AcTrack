@@ -73,11 +73,7 @@
                     <p id="worked-time">Loading...</p>
                 </div>
                 <div class="card">
-                    <h3>Last Worked For</h3>
-                    <p id="last-worked-time">Loading...</p>
-                </div>
-                <div class="card">
-                    <h3>Last Worked Date</h3>
+                    <h3>Last Worked </h3>
                     <p id="last-worked-date">Loading...</p>
                 </div>
                 <div class="card">
@@ -663,13 +659,15 @@ function resetTimer() {
     isTimerRunning = false;
 }
 
-// Helper to format time into HH:MM:SS
-function formatTime(seconds) {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+// Utility function to format time in HH:MM:SS
+function formatTime(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${hours} hrs ${minutes} mins ${seconds} secs`;
 }
+
 
 
 // Call stopTimer when the page unloads (user refreshes or navigates away)
@@ -1213,7 +1211,6 @@ async function fetchLastWorkedTime() {
 
         if (data.message) {
             console.error('Error from backend:', data.message);
-            document.getElementById('last-worked-time').innerText = 'No recent worked time available.';
             document.getElementById('last-worked-date').innerText = 'N/A';
             return;
         }
@@ -1221,15 +1218,12 @@ async function fetchLastWorkedTime() {
         if (data.workedTime && data.date) {
             // Convert the UTC date from the backend to the local time zone
             const localDate = new Date(data.date).toLocaleString();  // Converts UTC to local time
-            document.getElementById('last-worked-time').innerText = `${data.workedTime}`;
             document.getElementById('last-worked-date').innerText = `${localDate}`;
         } else {
-            document.getElementById('last-worked-time').innerText = 'No recent worked time available.';
             document.getElementById('last-worked-date').innerText = 'N/A';
         }
     } catch (error) {
         console.error('Error fetching last worked time:', error);
-        document.getElementById('last-worked-time').innerText = 'Error fetching last worked time.';
         document.getElementById('last-worked-date').innerText = 'Error fetching last worked date.';
     }
 }
