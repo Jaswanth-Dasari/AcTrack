@@ -534,30 +534,48 @@ app.get('/projects/count', async (req, res) => {
 const timeEntrySchema = new mongoose.Schema({
     userId: String,
     projectId: String,   // ID of the project
-    workedTime: Number,  // Time in seconds
+    workedTime: {
+        hours: Number,    // Hours worked
+        minutes: Number,  // Minutes worked
+        seconds: Number   // Seconds worked
+    },
     date: { type: Date, default: Date.now } // Automatically adds date when the entry is created
 });
 
 const TimeEntry = mongoose.model('TimeEntry', timeEntrySchema);
+
+// Helper function to convert seconds to hours, minutes, and seconds
+function convertSecondsToHMSS(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    
+    return { hours, minutes, seconds: remainingSeconds };
+}
+
 // POST endpoint to save time entry for a project
 app.post('/api/save-time-entry', async (req, res) => {
-    const { userId, projectId, workedTime } = req.body;
+    const { userId, projectId, workedTimeInSeconds } = req.body; // workedTimeInSeconds is in seconds
 
     try {
+        // Convert workedTime from seconds to hours, minutes, and seconds
+        const { hours, minutes, seconds } = convertSecondsToHMSS(workedTimeInSeconds);
+
+        // Create a new time entry and save it
         const newTimeEntry = new TimeEntry({
             userId: userId,
             projectId: projectId,
-            workedTime: workedTime
+            workedTime: { hours, minutes, seconds },  // Store in the format { hours, minutes, seconds }
+            date: new Date().toISOString()  // Save date in ISO format (UTC)
         });
 
         const savedTimeEntry = await newTimeEntry.save();
-        res.status(201).json(savedTimeEntry);
+        res.status(201).json(savedTimeEntry); // Return the saved entry
     } catch (error) {
         console.error('Error saving time entry:', error);
         res.status(500).json({ error: 'Error saving time entry', details: error.message });
     }
 });
-// Example: Update when starting the timer
 // Example: Update when starting the timer
 app.post('/start-timer', async (req, res) => {
     const { projectId } = req.body;

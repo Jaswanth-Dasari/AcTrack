@@ -73,9 +73,12 @@
                     <p id="worked-time">Loading...</p>
                 </div>
                 <div class="card">
-                    <h3>Last Worked</h3>
-                    <!-- <p id="last-project-worked">Loading..</p> -->
+                    <h3>Last Worked For</h3>
                     <p id="last-worked-time">Loading...</p>
+                </div>
+                <div class="card">
+                    <h3>Last Worked Date</h3>
+                    <p id="last-worked-date">Loading...</p>
                 </div>
                 <div class="card">
                     <h3 > Total Projects Worked</h3>
@@ -1176,28 +1179,64 @@ document.addEventListener('DOMContentLoaded', () => {
 // document.addEventListener('DOMContentLoaded', () => {
 //     fetchLastScreenshot();  // Call the function to fetch and display the last screenshot
 // });
-async function fetchLastScreenshot() {
+// async function fetchLastScreenshot() {
+//     const userId = 'user123'; // Replace with actual user ID
+
+//     try {
+//         const response = await fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`);
+//         const data = await response.json();
+
+//         if (data.lastScreenshotTime) {
+//             // Format the timestamp for display
+//             const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString();
+//             document.getElementById('last-worked-time').innerText = lastScreenshotDate;
+//         } else {
+//             document.getElementById('last-worked-time').innerText = 'No recent screenshot available.';
+//         }
+//     } catch (error) {
+//         console.error('Error fetching last screenshot:', error);
+//         document.getElementById('last-worked-time').innerText = 'Error fetching last screenshot.';
+//     }
+// }
+
+// // Call fetchLastScreenshot on page load
+// document.addEventListener('DOMContentLoaded', fetchLastScreenshot);
+
+async function fetchLastWorkedTime() {
     const userId = 'user123'; // Replace with actual user ID
 
     try {
-        const response = await fetch(`https://actracker.onrender.com/api/last-screenshot/${userId}`);
+        const response = await fetch(`http://localhost:5002/api/last-worked-time/${userId}`);
         const data = await response.json();
 
-        if (data.lastScreenshotTime) {
-            // Format the timestamp for display
-            const lastScreenshotDate = new Date(data.lastScreenshotTime).toLocaleString();
-            document.getElementById('last-worked-time').innerText = lastScreenshotDate;
+        console.log('Response from backend:', data);
+
+        if (data.message) {
+            console.error('Error from backend:', data.message);
+            document.getElementById('last-worked-time').innerText = 'No recent worked time available.';
+            document.getElementById('last-worked-date').innerText = 'N/A';
+            return;
+        }
+
+        if (data.workedTime && data.date) {
+            // Convert the UTC date from the backend to the local time zone
+            const localDate = new Date(data.date).toLocaleString();  // Converts UTC to local time
+            document.getElementById('last-worked-time').innerText = `${data.workedTime}`;
+            document.getElementById('last-worked-date').innerText = `${localDate}`;
         } else {
-            document.getElementById('last-worked-time').innerText = 'No recent screenshot available.';
+            document.getElementById('last-worked-time').innerText = 'No recent worked time available.';
+            document.getElementById('last-worked-date').innerText = 'N/A';
         }
     } catch (error) {
-        console.error('Error fetching last screenshot:', error);
-        document.getElementById('last-worked-time').innerText = 'Error fetching last screenshot.';
+        console.error('Error fetching last worked time:', error);
+        document.getElementById('last-worked-time').innerText = 'Error fetching last worked time.';
+        document.getElementById('last-worked-date').innerText = 'Error fetching last worked date.';
     }
 }
 
-// Call fetchLastScreenshot on page load
-document.addEventListener('DOMContentLoaded', fetchLastScreenshot);
+// Call fetchLastWorkedTime on page load
+document.addEventListener('DOMContentLoaded', fetchLastWorkedTime);
+
 // Ensure fetchRecentScreenshots is called after the DOM loads
 window.addEventListener('DOMContentLoaded', fetchRecentScreenshots);
 
