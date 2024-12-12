@@ -68,7 +68,7 @@ const browserActivitiesSchema = new mongoose.Schema({
     date: { type: Date, default: Date.now }
 });
 
-const BrowserActivities = mongoose.model('browserActivities', browserActivitiesSchema);
+const browserActivities = mongoose.model('browserActivities', browserActivitiesSchema);
 
 
 const userSchema = new mongoose.Schema({
@@ -708,7 +708,7 @@ app.get('/api/activity-this-week/:userId', async (req, res) => {
 // Endpoint to fetch the most recent 5 records
 app.get('/api/browser-activities', async (req, res) => {
     try {
-      const activities = await BrowserActivities.find()
+      const activities = await browserActivities.find()
         .sort({ date: -1 }) // Sort by date in descending order
         .limit(5); // Limit to 5 records
   
@@ -728,6 +728,7 @@ app.get('/api/browser-activities', async (req, res) => {
       res.status(500).json({ error: err.message });
     }
   });
+  
 //   app.get('/api/browser-activities', async (req, res) => {
 //   try {
 //     const activities = await BrowserActivities.find()
@@ -951,9 +952,33 @@ app.get('/api/last-worked-time/:userId', async (req, res) => {
     }
 });
 
+// Endpoint to fetch the most recent 5 records
+app.get('/api/browser-activities', async (req, res) => {
+    try {
+      const activities = await browserActivities.find()
+        .sort({ date: -1 }) // Sort by date in descending order
+        .limit(5); // Limit to 5 records
+  
+      // Log data to confirm it's being retrieved
+      console.log('Fetched Activities:', activities);
+  
+      // Send data to frontend
+      const formattedActivities = activities.map((activity) => ({
+        title: activity.title,
+        application: activity.application,
+        timeSpentPercentage: activity.timeSpentPercentage,
+      }));
+  
+      res.json(formattedActivities);
+    } catch (err) {
+      console.error('Error fetching activities:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
 app.post('/api/browser-activities', async (req, res) => {
     const activities = req.body.activities;
+    console.log('Received request:', JSON.stringify(req.body, null, 2));
 
     // Validate that activities is an array
     if (!Array.isArray(activities)) {
