@@ -705,29 +705,35 @@ app.get('/api/activity-this-week/:userId', async (req, res) => {
     }
 });
 
-// Endpoint to fetch the most recent 5 records
-app.get('/api/browser-activities', async (req, res) => {
+app.get('/api/browser-activities/:userId', async (req, res) => {
     try {
-      const activities = await browserActivities.find()
-        .sort({ date: -1 }) // Sort by date in descending order
-        .limit(5); // Limit to 5 records
-  
-      // Log data to confirm it's being retrieved
-      console.log('Fetched Activities:', activities);
-  
-      // Send data to frontend
-      const formattedActivities = activities.map((activity) => ({
-        title: activity.title,
-        application: activity.application,
-        timeSpentPercentage: activity.timeSpentPercentage,
-      }));
-  
-      res.json(formattedActivities);
-    } catch (err) {
-      console.error('Error fetching activities:', err);
-      res.status(500).json({ error: err.message });
+        const { userId } = req.params;
+        
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID is required' });
+        }
+
+        console.log('Server: Fetching activities for user:', userId);
+
+        // Ensure we're using the correct model and query
+        const activities = await browserActivities
+            .find({ 
+                userId: userId.toString().trim() // Clean and convert userId to string
+            })
+            .sort({ timestamp: -1 })
+            .limit(5);
+
+        console.log(`Server: Found ${activities.length} activities for user:`, userId);
+
+        // Always return a 200 status, even with empty results
+        res.status(200).json(activities || []);
+
+    } catch (error) {
+        console.error('Server: Error fetching browser activities:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
-  });
+});
+
   
 //   app.get('/api/browser-activities', async (req, res) => {
 //   try {
