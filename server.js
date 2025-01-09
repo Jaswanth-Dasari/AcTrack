@@ -1019,3 +1019,17 @@ app.post('/api/browser-activities', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+// Get screenshots for specific user
+app.get('/api/screenshots/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const screenshots = await Screenshot.find({ userId })
+            .sort({ timestamp: -1 })
+            .limit(10);
+        res.json(screenshots);
+    } catch (error) {
+        console.error('Error fetching screenshots:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
