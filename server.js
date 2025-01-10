@@ -1035,56 +1035,56 @@ app.get('/api/screenshots/:userId', async (req, res) => {
 });
 
 // Login endpoint
-app.post('/api/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
+// app.post('/api/login', async (req, res) => {
+//     try {
+//         const { email, password } = req.body;
 
-        // Validate required fields
-        if (!email || !password) {
-            return res.status(400).json({ 
-                error: 'Email and password are required' 
-            });
-        }
+//         // Validate required fields
+//         if (!email || !password) {
+//             return res.status(400).json({ 
+//                 error: 'Email and password are required' 
+//             });
+//         }
 
-        // Find user by email
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
+//         // Find user by email
+//         const user = await User.findOne({ email });
+//         if (!user) {
+//             return res.status(401).json({ error: 'Invalid credentials' });
+//         }
 
-        // Check password
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
+//         // Check password
+//         const isMatch = await user.comparePassword(password);
+//         if (!isMatch) {
+//             return res.status(401).json({ error: 'Invalid credentials' });
+//         }
 
-        // Generate JWT token
-        const token = jwt.sign(
-            { 
-                userId: user.userId, 
-                email: user.email,
-                fullName: user.fullName 
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+//         // Generate JWT token
+//         const token = jwt.sign(
+//             { 
+//                 userId: user.userId, 
+//                 email: user.email,
+//                 fullName: user.fullName 
+//             },
+//             process.env.JWT_SECRET,
+//             { expiresIn: '24h' }
+//         );
 
-        // Log only non-sensitive information
-        console.log('User logged in:', { userId: user.userId });
+//         // Log only non-sensitive information
+//         console.log('User logged in:', { userId: user.userId });
 
-        return res.status(200).json({
-            message: 'Login successful',
-            token,
-            userId: user.userId,
-            fullName: user.fullName
-        });
-    } catch (error) {
-        console.error('Login error occurred');
-        return res.status(500).json({ 
-            error: 'Login failed' 
-        });
-    }
-});
+//         return res.status(200).json({
+//             message: 'Login successful',
+//             token,
+//             userId: user.userId,
+//             fullName: user.fullName
+//         });
+//     } catch (error) {
+//         console.error('Login error occurred');
+//         return res.status(500).json({ 
+//             error: 'Login failed' 
+//         });
+//     }
+// });
 
 app.get('/api/get-screenshots/:userId', async (req, res) => {
     const userId = req.params.userId;
