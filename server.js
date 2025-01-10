@@ -1085,3 +1085,47 @@ app.post('/api/login', async (req, res) => {
         });
     }
 });
+
+app.get('/api/get-screenshots/:userId', async (req, res) => {
+    const userId = req.params.userId;
+    
+    try {
+        // Configure S3 params to list objects in user's specific folder
+        const params = {
+            Bucket: bucketName,
+            Prefix: `screenshots/${userId}/` // Look only in user's folder
+        };
+
+        console.log(`Fetching screenshots for user: ${userId}`);
+        console.log(`Looking in path: screenshots/${userId}/`);
+
+        const data = await s3.listObjectsV2(params).promise();
+        
+        if (!data.Contents || data.Contents.length === 0) {
+            console.log(`No screenshots found for user: ${userId}`);
+            return res.status(200).json([]); // Return empty array instead of 404
+        }
+
+        // Limit to most recent screenshots and format the response
+        const maxScreenshots = 6;
+        const screenshotUrls = data.Contents
+            .map(item => ({
+                url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                timestamp: item.LastModified,
+                key: item.Key
+            }))
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+            .slice(0, maxScreenshots);
+
+        console.log(`Found ${screenshotUrls.length} screenshots for user: ${userId}`);
+        res.json(screenshotUrls);
+
+    } catch (error) {
+        console.error('Error retrieving screenshots from S3:', error);
+        res.status(500).json({ 
+            error: 'Error retrieving screenshots', 
+            details: error.message,
+            userId: userId 
+        });
+    }
+});
