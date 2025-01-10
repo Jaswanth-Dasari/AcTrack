@@ -1129,3 +1129,71 @@ app.get('/api/get-screenshots/:userId', async (req, res) => {
         });
     }
 });
+
+app.get('/api/recent-screenshots/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        if (!userId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'User ID is required' 
+            });
+        }
+
+        console.log('Fetching screenshots for user:', userId);
+
+        const params = {
+            Bucket: bucketName,
+            Prefix: `screenshots/${userId}/`,
+            MaxKeys: 20
+        };
+
+        try {
+            const data = await s3.listObjectsV2(params).promise();
+            
+            if (!data || !data.Contents || data.Contents.length === 0) {
+                console.log(`No screenshots found for user ${userId}`);
+                return res.status(200).json({ 
+                    success: true,
+                    screenshots: [] 
+                });
+            }
+
+            const screenshots = data.Contents
+                .filter(item => {
+                    const keyParts = item.Key.split('/');
+                    return keyParts[1] === userId.toString();
+                })
+                .map(item => ({
+                    url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                    timestamp: item.LastModified,
+                    userId: userId,
+                    key: item.Key
+                }))
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            console.log(`Found ${screenshots.length} screenshots for user ${userId}`);
+            return res.status(200).json({ 
+                success: true,
+                screenshots: screenshots 
+            });
+
+        } catch (s3Error) {
+            console.error('S3 Error:', s3Error);
+            return res.status(200).json({ 
+                success: true,
+                screenshots: [],
+                message: 'Error accessing S3 bucket'
+            });
+        }
+
+    } catch (error) {
+        console.error('Server Error:', error);
+        return res.status(200).json({ 
+            success: true,
+            screenshots: [],
+            message: 'Internal server error'
+        });
+    }
+});
