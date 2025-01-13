@@ -10,6 +10,7 @@ const AWS = require('aws-sdk');
 const dotenv=require('dotenv');
 const multer=require('multer');
 const bcrypt = require('bcryptjs');
+const auth = require('./middleware/auth');
 const session = require('express-session');
 const { v4: uuidv4 } = require('uuid'); // Use UUID for unique userId generation
 require('dotenv').config();
@@ -1203,13 +1204,35 @@ app.get('/api/recent-screenshots/:userId', async (req, res) => {
     }
 });
 
+
+// Add this middleware to protect routes that require authentication
+const requireAuth = (req, res, next) => {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+};
+
 // Login endpoint
 app.post('/api/login', async (req, res) => {
     try {
+        console.log('Login attempt received:', { email: req.body.email });
+        console.log('Request body:', req.body);
+        
         const { email, password } = req.body;
 
         // Validate required fields
         if (!email || !password) {
+            console.log('Missing required fields');
             return res.status(400).json({ 
                 error: 'Email and password are required' 
             });
@@ -1218,13 +1241,23 @@ app.post('/api/login', async (req, res) => {
         // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
+            console.log('User not found:', email);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         // Check password
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+        try {
+            const isMatch = await user.comparePassword(password);
+            if (!isMatch) {
+                console.log('Invalid password for user:', email);
+                return res.status(401).json({ error: 'Invalid credentials' });
+            }
+        } catch (passwordError) {
+            console.error('Password comparison error:', passwordError);
+            return res.status(500).json({ 
+                error: 'Error verifying credentials',
+                message: passwordError.message 
+            });
         }
 
         // Generate JWT token
@@ -1234,12 +1267,12 @@ app.post('/api/login', async (req, res) => {
                 email: user.email,
                 fullName: user.fullName 
             },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || 'your-secret-key',  // Fallback secret for development
             { expiresIn: '24h' }
         );
 
-        // Log only non-sensitive information
-        console.log('User logged in:', { userId: user.userId });
+        // Log successful login
+        console.log('Login successful:', { userId: user.userId, email: user.email });
 
         return res.status(200).json({
             message: 'Login successful',
@@ -1248,9 +1281,14 @@ app.post('/api/login', async (req, res) => {
             fullName: user.fullName
         });
     } catch (error) {
-        console.error('Login error occurred');
+        console.error('Login error occurred:', error);
+        console.error('Error stack:', error.stack);
         return res.status(500).json({ 
-            error: 'Login failed' 
+            error: 'Login failed',
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 });
+
+
