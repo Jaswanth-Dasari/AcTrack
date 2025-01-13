@@ -104,7 +104,12 @@ const Project = mongoose.model('Project', projectSchema);
 
 // Middleware
 app.use(bodyParser.json());
-app.use(cors());
+app.use(cors({
+    origin: ['https://actracker.onrender.com', 'http://localhost:5002', 'file://'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    credentials: true
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Add the root route ("/") to serve the "index.html"
