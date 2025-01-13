@@ -14,7 +14,6 @@ const session = require('express-session');
 const { v4: uuidv4 } = require('uuid'); // Use UUID for unique userId generation
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const User = require('./models/User');
 require('dotenv').config();
 
 
