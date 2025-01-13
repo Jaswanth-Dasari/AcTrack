@@ -12,7 +12,11 @@ const multer=require('multer');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const { v4: uuidv4 } = require('uuid'); // Use UUID for unique userId generation
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const User = require('./models/User');
 require('dotenv').config();
+
 
 
 const app = express();
@@ -104,12 +108,7 @@ const Project = mongoose.model('Project', projectSchema);
 
 // Middleware
 app.use(bodyParser.json());
-app.use(cors({
-    origin: ['https://actracker.onrender.com', 'http://localhost:5002', 'file://'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    credentials: true
-}));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Add the root route ("/") to serve the "index.html"
@@ -1203,6 +1202,18 @@ app.get('/api/recent-screenshots/:userId', async (req, res) => {
     }
 });
 
+// CORS configuration
+app.use(cors({
+    origin: ['https://actracker.onrender.com'], // Add your website's domain
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    credentials: true
+}));
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Login endpoint
 app.post('/api/login', async (req, res) => {
     try {
@@ -1218,12 +1229,14 @@ app.post('/api/login', async (req, res) => {
         // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
+            console.log('User not found:', email);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         // Check password
-        const isMatch = await user.comparePassword(password);
+        const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
+            console.log('Invalid password for user:', email);
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
@@ -1234,11 +1247,11 @@ app.post('/api/login', async (req, res) => {
                 email: user.email,
                 fullName: user.fullName 
             },
-            process.env.JWT_SECRET,
+            process.env.JWT_SECRET || 'your-default-secret-key',
             { expiresIn: '24h' }
         );
 
-        // Log only non-sensitive information
+        // Log successful login
         console.log('User logged in:', { userId: user.userId });
 
         return res.status(200).json({
@@ -1248,9 +1261,10 @@ app.post('/api/login', async (req, res) => {
             fullName: user.fullName
         });
     } catch (error) {
-        console.error('Login error occurred');
+        console.error('Login error occurred:', error);
         return res.status(500).json({ 
-            error: 'Login failed' 
+            error: 'Login failed',
+            details: error.message
         });
     }
 });
