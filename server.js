@@ -12,6 +12,7 @@ const multer=require('multer');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const { v4: uuidv4 } = require('uuid'); // Use UUID for unique userId generation
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 
