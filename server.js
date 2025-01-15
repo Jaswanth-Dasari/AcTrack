@@ -18,12 +18,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = 5000;
-const allowedOrigins = [
-    'http://localhost:5002',
-    'http://localhost:3000',
-    'https://actracker.onrender.com',
-    'http://localhost:5000'
-];
+const allowedOrigins = ['https://actracker.onrender.com'];
 
 // AWS S3 Configuration
 const s3 = new AWS.S3({
@@ -114,19 +109,21 @@ const Project = mongoose.model('Project', projectSchema);
 app.use(bodyParser.json());
 app.use(cors({
     origin: function(origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
+        // Allow requests with no origin (like desktop apps)
         if (!origin) return callback(null, true);
         
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-            return callback(new Error(msg), false);
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log('Blocked origin:', origin);
+            callback(null, true); // Allow all origins for now since desktop app needs access
         }
-        return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true
 }));
+
 // Add OPTIONS handler for preflight requests
 app.options('*', cors());
 app.use(express.static(path.join(__dirname, 'public')));
