@@ -32,6 +32,7 @@ const s3 = new AWS.S3({
 });
 
 const bucketName = process.env.S3_BUCKET_NAME;        // S3 bucket name
+const JWT_SECRET = process.env.JWT_SECRET 
 
 // MongoDB connection
 const mongoURI = process.env.MONGO_URI; 
@@ -1233,9 +1234,10 @@ app.get('/api/recent-screenshots/:userId', async (req, res) => {
     }
 });
 
+// Login endpoint
 app.post('/api/login', async (req, res) => {
     try {
-        console.log('Login attempt received:', { email: req.body.email });
+        console.log('Login attempt received for email:', req.body.email);
         
         // Check MongoDB connection first
         if (mongoose.connection.readyState !== 1) {
@@ -1257,11 +1259,7 @@ app.post('/api/login', async (req, res) => {
         }
 
         // Find user by email
-        const user = await User.findOne({ email }).catch(err => {
-            console.error('Database query error:', err);
-            throw new Error('Database query failed');
-        });
-
+        const user = await User.findOne({ email });
         if (!user) {
             console.log('Login failed: User not found');
             return res.status(401).json({ error: 'Invalid credentials' });
@@ -1274,15 +1272,6 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Verify JWT_SECRET is configured
-        if (!process.env.JWT_SECRET) {
-            console.error('JWT_SECRET is not configured');
-            return res.status(500).json({ 
-                error: 'Server configuration error',
-                details: 'JWT configuration missing'
-            });
-        }
-
         // Generate JWT token
         const token = jwt.sign(
             { 
@@ -1290,13 +1279,14 @@ app.post('/api/login', async (req, res) => {
                 email: user.email,
                 fullName: user.fullName 
             },
-            process.env.JWT_SECRET,
+            JWT_SECRET,
             { expiresIn: '24h' }
         );
 
-        // Set CORS headers explicitly for this response
-        res.header('Access-Control-Allow-Origin', req.headers.origin);
-        res.header('Access-Control-Allow-Credentials', true);
+        // Set CORS headers
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
 
         // Log successful login
         console.log('User logged in successfully:', { userId: user.userId });
