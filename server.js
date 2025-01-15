@@ -17,6 +17,12 @@ require('dotenv').config();
 
 const app = express();
 const PORT = 5000;
+const allowedOrigins = [
+    'http://localhost:5002',
+    'http://localhost:3000',
+    'https://actracker.onrender.com',
+    'http://localhost:5000'
+];
 
 // AWS S3 Configuration
 const s3 = new AWS.S3({
@@ -104,8 +110,37 @@ const Project = mongoose.model('Project', projectSchema);
 
 // Middleware
 app.use(bodyParser.json());
-app.use(cors());
+app.use(cors({
+    origin: function(origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    credentials: true
+}));
+// Add OPTIONS handler for preflight requests
+app.options('*', cors());
 app.use(express.static(path.join(__dirname, 'public')));
+// Make sure body parsing middleware is properly configured
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Add request logging middleware
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    if (req.body && Object.keys(req.body).length > 0) {
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+    }
+    next();
+});
+
 
 // Add the root route ("/") to serve the "index.html"
 app.get('/', (req, res) => {
@@ -1198,28 +1233,54 @@ app.get('/api/recent-screenshots/:userId', async (req, res) => {
     }
 });
 
-// Login endpoint
 app.post('/api/login', async (req, res) => {
     try {
+        console.log('Login attempt received:', { email: req.body.email });
+        
+        // Check MongoDB connection first
+        if (mongoose.connection.readyState !== 1) {
+            console.error('MongoDB not connected. Current state:', mongoose.connection.readyState);
+            return res.status(500).json({ 
+                error: 'Database connection error',
+                details: 'Unable to connect to database'
+            });
+        }
+
         const { email, password } = req.body;
 
         // Validate required fields
         if (!email || !password) {
+            console.log('Login failed: Missing required fields');
             return res.status(400).json({ 
                 error: 'Email and password are required' 
             });
         }
 
         // Find user by email
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).catch(err => {
+            console.error('Database query error:', err);
+            throw new Error('Database query failed');
+        });
+
         if (!user) {
+            console.log('Login failed: User not found');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         // Check password
-        const isMatch = await user.comparePassword(password);
+        const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
+            console.log('Login failed: Invalid password');
             return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Verify JWT_SECRET is configured
+        if (!process.env.JWT_SECRET) {
+            console.error('JWT_SECRET is not configured');
+            return res.status(500).json({ 
+                error: 'Server configuration error',
+                details: 'JWT configuration missing'
+            });
         }
 
         // Generate JWT token
@@ -1233,8 +1294,12 @@ app.post('/api/login', async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        // Log only non-sensitive information
-        console.log('User logged in:', { userId: user.userId });
+        // Set CORS headers explicitly for this response
+        res.header('Access-Control-Allow-Origin', req.headers.origin);
+        res.header('Access-Control-Allow-Credentials', true);
+
+        // Log successful login
+        console.log('User logged in successfully:', { userId: user.userId });
 
         return res.status(200).json({
             message: 'Login successful',
@@ -1243,9 +1308,10 @@ app.post('/api/login', async (req, res) => {
             fullName: user.fullName
         });
     } catch (error) {
-        console.error('Login error occurred');
+        console.error('Login error occurred:', error);
         return res.status(500).json({ 
-            error: 'Login failed' 
+            error: 'Login failed',
+            details: error.message 
         });
     }
 });
