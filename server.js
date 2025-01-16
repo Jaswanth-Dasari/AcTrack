@@ -1303,3 +1303,99 @@ app.post('/api/login', async (req, res) => {
         });
     }
 });
+
+app.post('/api/tasks/create', auth, async (req, res) => {
+    try {
+        const taskData = req.body;
+        
+        // Validate required fields
+        if (!taskData.title || !taskData.projectId) {
+            return res.status(400).json({ 
+                error: 'Missing required fields',
+                details: 'Title and project ID are required'
+            });
+        }
+
+        // Create new task
+        const task = new Task({
+            ...taskData,
+            userId: req.user.userId // Get userId from auth middleware
+        });
+
+        // Save the task
+        const savedTask = await task.save();
+        console.log('Task saved successfully:', savedTask);
+
+        res.status(201).json({
+            message: 'Task created successfully',
+            task: savedTask
+        });
+    } catch (error) {
+        console.error('Error creating task:', error);
+        res.status(500).json({ 
+            error: 'Failed to create task',
+            details: error.message 
+        });
+    }
+});
+
+// Get all tasks for a user
+app.get('/api/tasks', auth, async (req, res) => {
+    try {
+        const tasks = await Task.find({ userId: req.user.userId })
+            .sort({ createdAt: -1 });
+        res.status(200).json(tasks);
+    } catch (error) {
+        console.error('Error fetching tasks:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch tasks',
+            details: error.message 
+        });
+    }
+});
+
+// Get tasks for a specific project
+app.get('/api/tasks/project/:projectId', auth, async (req, res) => {
+    try {
+        const tasks = await Task.find({ 
+            userId: req.user.userId,
+            projectId: req.params.projectId 
+        }).sort({ createdAt: -1 });
+        res.status(200).json(tasks);
+    } catch (error) {
+        console.error('Error fetching project tasks:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch project tasks',
+            details: error.message 
+        });
+    }
+});
+
+// Update task status
+app.put('/api/tasks/:taskId/status', auth, async (req, res) => {
+    try {
+        const { status } = req.body;
+        const task = await Task.findOne({ 
+            taskId: req.params.taskId,
+            userId: req.user.userId 
+        });
+
+        if (!task) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        task.status = status;
+        await task.save();
+
+        res.status(200).json({
+            message: 'Task status updated successfully',
+            task
+        });
+    } catch (error) {
+        console.error('Error updating task status:', error);
+        res.status(500).json({ 
+            error: 'Failed to update task status',
+            details: error.message 
+        });
+    }
+});
