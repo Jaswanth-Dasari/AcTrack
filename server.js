@@ -1440,7 +1440,7 @@ app.post('/api/daily-time/update', authenticateToken, async (req, res) => {
 });
 
 // Task Model (models/Task.js)
-const mongoose = require('mongoose');
+
 
 const taskSchema = new mongoose.Schema({
     taskId: String,
@@ -1484,7 +1484,7 @@ const taskSchema = new mongoose.Schema({
 
 
 // DailyTime Model (models/DailyTime.js)
-const mongoose = require('mongoose');
+
 
 const dailyTimeSchema = new mongoose.Schema({
     userId: String,
