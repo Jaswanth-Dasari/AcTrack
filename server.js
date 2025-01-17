@@ -1232,309 +1232,214 @@ app.get('/api/recent-screenshots/:userId', async (req, res) => {
     }
 });
 
-// Login endpoint
+// Update the login endpoint
 app.post('/api/login', async (req, res) => {
     try {
         console.log('Login attempt received for email:', req.body.email);
         
-        // Check MongoDB connection first
-        if (mongoose.connection.readyState !== 1) {
-            console.error('MongoDB not connected. Current state:', mongoose.connection.readyState);
-            return res.status(500).json({ 
-                error: 'Database connection error',
-                details: 'Unable to connect to database'
-            });
-        }
-
         const { email, password } = req.body;
 
-        // Validate required fields
         if (!email || !password) {
-            console.log('Login failed: Missing required fields');
-            return res.status(400).json({ 
-                error: 'Email and password are required' 
-            });
+            return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
-            console.log('Login failed: User not found');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Check password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            console.log('Login failed: Invalid password');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Generate JWT token
+        // Make sure JWT_SECRET is available
+        if (!process.env.JWT_SECRET) {
+            console.error('JWT_SECRET is not configured');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+
+        // Generate token with all necessary user info
         const token = jwt.sign(
             { 
                 userId: user.userId, 
                 email: user.email,
                 fullName: user.fullName 
             },
-            JWT_SECRET,
+            process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
 
-        // Set CORS headers
-        res.header('Access-Control-Allow-Origin', '*');
-        res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
-        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+        console.log('Login successful for user:', user.userId);
 
-        // Log successful login
-        console.log('User logged in successfully:', { userId: user.userId });
-
-        return res.status(200).json({
+        res.status(200).json({
             message: 'Login successful',
             token,
             userId: user.userId,
             fullName: user.fullName
         });
     } catch (error) {
-        console.error('Login error occurred:', error);
-        return res.status(500).json({ 
-            error: 'Login failed',
-            details: error.message 
-        });
+        console.error('Login error:', error);
+        res.status(500).json({ error: 'Login failed', details: error.message });
     }
 });
 
-// Create Task
-app.post('/api/tasks/create', authenticateToken, async (req, res) => {
-    try {
-        const taskData = req.body;
-        // Validate required fields
-        if (!taskData.userId || !taskData.title) {
-            return res.status(400).json({ error: 'Missing required fields' });
-        }
-        
-        const task = new Task(taskData);
-        await task.save();
-        res.status(201).json(task);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get Tasks by User ID
-app.get('/api/tasks/:userId', authenticateToken, async (req, res) => {
-    try {
-        const tasks = await Task.find({ userId: req.params.userId });
-        res.json(tasks);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Update Task Status
-app.patch('/api/tasks/:taskId', authenticateToken, async (req, res) => {
-    try {
-        const { status, updatedAt } = req.body;
-        const task = await Task.findOneAndUpdate(
-            { taskId: req.params.taskId },
-            { status, updatedAt },
-            { new: true }
-        );
-        if (!task) {
-            return res.status(404).json({ error: 'Task not found' });
-        }
-        res.json(task);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get Daily Time for User
-app.get('/api/daily-time/:userId', authenticateToken, async (req, res) => {
-    try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        let dailyTime = await DailyTime.findOne({
-            userId: req.params.userId,
-            date: {
-                $gte: today,
-                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-            }
-        });
-        
-        if (!dailyTime) {
-            dailyTime = new DailyTime({
-                userId: req.params.userId,
-                date: today,
-                totalSeconds: 0
-            });
-            await dailyTime.save();
-        }
-        
-        // Format time for display
-        const hours = Math.floor(dailyTime.totalSeconds / 3600);
-        const minutes = Math.floor((dailyTime.totalSeconds % 3600) / 60);
-        const seconds = dailyTime.totalSeconds % 60;
-        const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        
-        res.json({
-            totalSeconds: dailyTime.totalSeconds,
-            formattedTime
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get All Daily Time Entries for User
-app.get('/api/daily-time/all/:userId', authenticateToken, async (req, res) => {
-    try {
-        const dailyTimes = await DailyTime.find({ userId: req.params.userId });
-        res.json(dailyTimes);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Update Daily Time
-app.post('/api/daily-time/update', authenticateToken, async (req, res) => {
-    try {
-        const { userId, seconds } = req.body;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        let dailyTime = await DailyTime.findOne({
-            userId,
-            date: {
-                $gte: today,
-                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-            }
-        });
-        
-        if (!dailyTime) {
-            dailyTime = new DailyTime({
-                userId,
-                date: today,
-                totalSeconds: seconds
-            });
-        } else {
-            dailyTime.totalSeconds += seconds;
-        }
-        
-        await dailyTime.save();
-        
-        // Format time for display
-        const hours = Math.floor(dailyTime.totalSeconds / 3600);
-        const minutes = Math.floor((dailyTime.totalSeconds % 3600) / 60);
-        const remainingSeconds = dailyTime.totalSeconds % 60;
-        const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-        
-        res.json({
-            totalSeconds: dailyTime.totalSeconds,
-            formattedTime
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Task Model (models/Task.js)
-
-
-const taskSchema = new mongoose.Schema({
-    taskId: String,
-    userId: String,
-    projectId: String,
-    title: String,
-    description: String,
-    status: String,
-    priority: String,
-    createdAt: Date,
-    updatedAt: Date,
-    metadata: {
-        sprint: String,
-        epic: String,
-        labels: [String],
-        dependencies: [String],
-        attachments: [String]
-    },
-    timing: {
-        startDate: Date,
-        dueDate: Date,
-        estimate: String,
-        worked: String,
-        timeLogged: String
-    },
-    recurring: {
-        isRecurring: Boolean,
-        untilDate: Date,
-        days: [String]
-    },
-    assignee: {
-        userId: String,
-        assignedAt: Date
-    },
-    project: {
-        projectId: String,
-        projectName: String
-    }
-});
-
-
-
-// DailyTime Model (models/DailyTime.js)
-
-
-const dailyTimeSchema = new mongoose.Schema({
-    userId: String,
-    date: Date,
-    totalSeconds: Number
-});
-
-
-// function authenticateToken(req, res, next) {
-//     const authHeader = req.headers['authorization'];
-//     const token = authHeader && authHeader.split(' ')[1];
-    
-//     if (!token) {
-//         return res.status(401).json({ error: 'Authentication token required' });
-//     }
-    
-//     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-//         if (err) {
-//             return res.status(403).json({ error: 'Invalid or expired token' });
-//         }
-//         req.user = user;
-//         next();
-//     });
-// }
 // Update the authenticateToken middleware
 function authenticateToken(req, res, next) {
     try {
         const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
-        
+        if (!authHeader) {
+            console.log('No authorization header');
+            return res.status(401).json({ error: 'No authorization header' });
+        }
+
+        const token = authHeader.split(' ')[1];
         if (!token) {
             console.log('No token provided');
-            return res.status(401).json({ error: 'Authentication token required' });
+            return res.status(401).json({ error: 'No token provided' });
         }
-        
-        if (!process.env.JWT_SECRET) {
-            console.error('JWT_SECRET is not defined');
-            return res.status(500).json({ error: 'Server configuration error' });
-        }
-        
-        jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+
+        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
             if (err) {
                 console.error('Token verification failed:', err.message);
-                return res.status(403).json({ error: 'Invalid or expired token' });
+                return res.status(403).json({ error: 'Invalid token' });
             }
-            req.user = user;
+
+            req.user = decoded;
+            console.log('Token verified for user:', decoded.userId);
             next();
         });
     } catch (error) {
         console.error('Authentication error:', error);
-        return res.status(500).json({ error: 'Authentication failed' });
+        res.status(500).json({ error: 'Authentication failed' });
+    }
+};
+
+// Update the tasks endpoint
+app.get('/api/tasks/:userId', authenticateToken, async (req, res) => {
+    try {
+        console.log('Fetching tasks for user:', req.params.userId);
+        
+        // Verify the token's userId matches the requested userId
+        if (req.user.userId !== req.params.userId) {
+            console.log('User ID mismatch:', req.user.userId, 'vs', req.params.userId);
+            return res.status(403).json({ error: 'Unauthorized access' });
+        }
+
+        const tasks = await Task.find({ userId: req.params.userId });
+        console.log(`Found ${tasks.length} tasks for user ${req.params.userId}`);
+        res.json(tasks);
+    } catch (error) {
+        console.error('Error fetching tasks:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update the daily time endpoint
+app.get('/api/daily-time/all/:userId', authenticateToken, async (req, res) => {
+    try {
+        console.log('Fetching daily time for user:', req.params.userId);
+        
+        // Verify the token's userId matches the requested userId
+        if (req.user.userId !== req.params.userId) {
+            console.log('User ID mismatch:', req.user.userId, 'vs', req.params.userId);
+            return res.status(403).json({ error: 'Unauthorized access' });
+        }
+
+        const dailyTimes = await DailyTime.find({ userId: req.params.userId });
+        console.log(`Found ${dailyTimes.length} daily time entries for user ${req.params.userId}`);
+        res.json(dailyTimes);
+    } catch (error) {
+        console.error('Error fetching daily time:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+// Add this function to check if the token is valid
+function isTokenValid() {
+    const token = window.auth.getToken();
+    if (!token) return false;
+    
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expirationTime = payload.exp * 1000; // Convert to milliseconds
+        return Date.now() < expirationTime;
+    } catch (error) {
+        console.error('Token validation error:', error);
+        return false;
     }
 }
+
+// Update the loadTasks function
+async function loadTasks() {
+    try {
+        if (!isTokenValid()) {
+            console.log('Token is invalid or expired');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const userId = window.auth.getUserId();
+        console.log('Fetching tasks for user:', userId);
+        
+        const response = await fetch(`https://actracker.onrender.com/api/tasks/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to load tasks');
+        }
+        
+        allTasks = await response.json();
+        filteredTasks = [...allTasks];
+        renderTasks(filteredTasks);
+        
+        document.querySelector('.stat-card:nth-child(4) p').textContent = allTasks.length;
+        
+    } catch (error) {
+        console.error('Error loading tasks:', error);
+        displayNotification('Failed to load tasks', 'error');
+    }
+}
+
+// Update the loadUserStats function
+async function loadUserStats() {
+    try {
+        if (!isTokenValid()) {
+            console.log('Token is invalid or expired');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const userId = window.auth.getUserId();
+        console.log('Fetching user stats for user:', userId);
+        
+        const response = await fetch(`https://actracker.onrender.com/api/daily-time/all/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to load user stats');
+        }
+
+        const dailyTimes = await response.json();
+        // Rest of the function remains the same...
+    } catch (error) {
+        console.error('Error loading user stats:', error);
+        displayNotification('Failed to load user statistics', 'error');
+    }
+}
+// Add this before your routes
+app.use((err, req, res, next) => {
+    console.error('Global error handler:', err);
+    res.status(500).json({ 
+        error: 'Internal server error', 
+        message: err.message,
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+});
