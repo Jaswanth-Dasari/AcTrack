@@ -1443,3 +1443,54 @@ app.use((err, req, res, next) => {
         stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
 });
+
+const dailyTimeSchema = new mongoose.Schema({
+    userId: {
+        type: String,
+        required: true
+    },
+    date: {
+        type: Date,
+        required: true
+    },
+    totalSeconds: {
+        type: Number,
+        default: 0
+    },
+    tasks: [{
+        taskId: String,
+        seconds: Number,
+        title: String,
+        projectName: String
+    }]
+}, { timestamps: true });
+
+
+const taskSchema = new mongoose.Schema({
+    userId: {
+        type: String,
+        required: true
+    },
+    taskId: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    title: {
+        type: String,
+        required: true
+    },
+    description: String,
+    projectName: String,
+    status: {
+        type: String,
+        enum: ['pending', 'completed'],
+        default: 'pending'
+    },
+    priority: {
+        type: String,
+        enum: ['Low', 'Medium', 'High', 'Overdue'],
+        default: 'Medium'
+    },
+    dueDate: Date
+}, { timestamps: true });
