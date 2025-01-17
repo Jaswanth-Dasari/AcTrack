@@ -1444,6 +1444,7 @@ app.use((err, req, res, next) => {
     });
 });
 
+// Daily Time Schema
 const dailyTimeSchema = new mongoose.Schema({
     userId: {
         type: String,
@@ -1465,7 +1466,7 @@ const dailyTimeSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
-
+// Task Schema
 const taskSchema = new mongoose.Schema({
     userId: {
         type: String,
@@ -1494,3 +1495,6 @@ const taskSchema = new mongoose.Schema({
     },
     dueDate: Date
 }, { timestamps: true });
+
+const Task = mongoose.model('Task', taskSchema);
+const DailyTime = mongoose.model('DailyTime', dailyTimeSchema);
