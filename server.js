@@ -1304,98 +1304,191 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.post('/api/tasks/create', auth, async (req, res) => {
+// Create Task
+app.post('/api/tasks/create', authenticateToken, async (req, res) => {
     try {
         const taskData = req.body;
-        
         // Validate required fields
-        if (!taskData.title || !taskData.projectId) {
-            return res.status(400).json({ 
-                error: 'Missing required fields',
-                details: 'Title and project ID are required'
-            });
+        if (!taskData.userId || !taskData.title) {
+            return res.status(400).json({ error: 'Missing required fields' });
         }
-
-        // Create new task
-        const task = new Task({
-            ...taskData,
-            userId: req.user.userId // Get userId from auth middleware
-        });
-
-        // Save the task
-        const savedTask = await task.save();
-        console.log('Task saved successfully:', savedTask);
-
-        res.status(201).json({
-            message: 'Task created successfully',
-            task: savedTask
-        });
+        
+        const task = new Task(taskData);
+        await task.save();
+        res.status(201).json(task);
     } catch (error) {
-        console.error('Error creating task:', error);
-        res.status(500).json({ 
-            error: 'Failed to create task',
-            details: error.message 
-        });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Get all tasks for a user
-app.get('/api/tasks', auth, async (req, res) => {
+// Get Tasks by User ID
+app.get('/api/tasks/:userId', authenticateToken, async (req, res) => {
     try {
-        const tasks = await Task.find({ userId: req.user.userId })
-            .sort({ createdAt: -1 });
-        res.status(200).json(tasks);
+        const tasks = await Task.find({ userId: req.params.userId });
+        res.json(tasks);
     } catch (error) {
-        console.error('Error fetching tasks:', error);
-        res.status(500).json({ 
-            error: 'Failed to fetch tasks',
-            details: error.message 
-        });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Get tasks for a specific project
-app.get('/api/tasks/project/:projectId', auth, async (req, res) => {
+// Update Task Status
+app.patch('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     try {
-        const tasks = await Task.find({ 
-            userId: req.user.userId,
-            projectId: req.params.projectId 
-        }).sort({ createdAt: -1 });
-        res.status(200).json(tasks);
-    } catch (error) {
-        console.error('Error fetching project tasks:', error);
-        res.status(500).json({ 
-            error: 'Failed to fetch project tasks',
-            details: error.message 
-        });
-    }
-});
-
-// Update task status
-app.put('/api/tasks/:taskId/status', auth, async (req, res) => {
-    try {
-        const { status } = req.body;
-        const task = await Task.findOne({ 
-            taskId: req.params.taskId,
-            userId: req.user.userId 
-        });
-
+        const { status, updatedAt } = req.body;
+        const task = await Task.findOneAndUpdate(
+            { taskId: req.params.taskId },
+            { status, updatedAt },
+            { new: true }
+        );
         if (!task) {
             return res.status(404).json({ error: 'Task not found' });
         }
-
-        task.status = status;
-        await task.save();
-
-        res.status(200).json({
-            message: 'Task status updated successfully',
-            task
-        });
+        res.json(task);
     } catch (error) {
-        console.error('Error updating task status:', error);
-        res.status(500).json({ 
-            error: 'Failed to update task status',
-            details: error.message 
-        });
+        res.status(500).json({ error: error.message });
     }
 });
+
+// Get Daily Time for User
+app.get('/api/daily-time/:userId', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let dailyTime = await DailyTime.findOne({
+            userId: req.params.userId,
+            date: {
+                $gte: today,
+                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+            }
+        });
+        
+        if (!dailyTime) {
+            dailyTime = new DailyTime({
+                userId: req.params.userId,
+                date: today,
+                totalSeconds: 0
+            });
+            await dailyTime.save();
+        }
+        
+        // Format time for display
+        const hours = Math.floor(dailyTime.totalSeconds / 3600);
+        const minutes = Math.floor((dailyTime.totalSeconds % 3600) / 60);
+        const seconds = dailyTime.totalSeconds % 60;
+        const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        res.json({
+            totalSeconds: dailyTime.totalSeconds,
+            formattedTime
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get All Daily Time Entries for User
+app.get('/api/daily-time/all/:userId', authenticateToken, async (req, res) => {
+    try {
+        const dailyTimes = await DailyTime.find({ userId: req.params.userId });
+        res.json(dailyTimes);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update Daily Time
+app.post('/api/daily-time/update', authenticateToken, async (req, res) => {
+    try {
+        const { userId, seconds } = req.body;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let dailyTime = await DailyTime.findOne({
+            userId,
+            date: {
+                $gte: today,
+                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+            }
+        });
+        
+        if (!dailyTime) {
+            dailyTime = new DailyTime({
+                userId,
+                date: today,
+                totalSeconds: seconds
+            });
+        } else {
+            dailyTime.totalSeconds += seconds;
+        }
+        
+        await dailyTime.save();
+        
+        // Format time for display
+        const hours = Math.floor(dailyTime.totalSeconds / 3600);
+        const minutes = Math.floor((dailyTime.totalSeconds % 3600) / 60);
+        const remainingSeconds = dailyTime.totalSeconds % 60;
+        const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        
+        res.json({
+            totalSeconds: dailyTime.totalSeconds,
+            formattedTime
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Task Model (models/Task.js)
+const mongoose = require('mongoose');
+
+const taskSchema = new mongoose.Schema({
+    taskId: String,
+    userId: String,
+    projectId: String,
+    title: String,
+    description: String,
+    status: String,
+    priority: String,
+    createdAt: Date,
+    updatedAt: Date,
+    metadata: {
+        sprint: String,
+        epic: String,
+        labels: [String],
+        dependencies: [String],
+        attachments: [String]
+    },
+    timing: {
+        startDate: Date,
+        dueDate: Date,
+        estimate: String,
+        worked: String,
+        timeLogged: String
+    },
+    recurring: {
+        isRecurring: Boolean,
+        untilDate: Date,
+        days: [String]
+    },
+    assignee: {
+        userId: String,
+        assignedAt: Date
+    },
+    project: {
+        projectId: String,
+        projectName: String
+    }
+});
+
+
+
+// DailyTime Model (models/DailyTime.js)
+const mongoose = require('mongoose');
+
+const dailyTimeSchema = new mongoose.Schema({
+    userId: String,
+    date: Date,
+    totalSeconds: Number
+});
+
