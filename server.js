@@ -1354,6 +1354,90 @@ app.get('/api/daily-time/all/:userId', authenticateToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// ... existing code ...
+
+// Daily Time Routes
+app.get('/api/daily-time/:userId', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        let dailyTime = await DailyTime.findOne({
+            userId: req.params.userId,
+            date: {
+                $gte: today,
+                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+            }
+        });
+        
+        if (!dailyTime) {
+            dailyTime = new DailyTime({
+                userId: req.params.userId,
+                date: today,
+                totalSeconds: 0,
+                tasks: []
+            });
+            await dailyTime.save();
+        }
+        
+        res.json(dailyTime);
+    } catch (error) {
+        console.error('Error fetching daily time:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/daily-time/all/:userId', authenticateToken, async (req, res) => {
+    try {
+        const dailyTimes = await DailyTime.find({ userId: req.params.userId });
+        res.json(dailyTimes);
+    } catch (error) {
+        console.error('Error fetching all daily times:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/daily-time/update', authenticateToken, async (req, res) => {
+    try {
+        const { userId, date, taskId, seconds, title, projectName } = req.body;
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        
+        let dailyTime = await DailyTime.findOne({
+            userId,
+            date: {
+                $gte: dayStart,
+                $lt: new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
+            }
+        });
+        
+        if (!dailyTime) {
+            dailyTime = new DailyTime({
+                userId,
+                date: dayStart,
+                totalSeconds: 0,
+                tasks: []
+            });
+        }
+        
+        const existingTaskIndex = dailyTime.tasks.findIndex(t => t.taskId === taskId);
+        if (existingTaskIndex !== -1) {
+            dailyTime.tasks[existingTaskIndex].seconds += seconds;
+        } else {
+            dailyTime.tasks.push({ taskId, seconds, title, projectName });
+        }
+        
+        dailyTime.totalSeconds = dailyTime.tasks.reduce((total, task) => total + task.seconds, 0);
+        await dailyTime.save();
+        
+        res.json(dailyTime);
+    } catch (error) {
+        console.error('Error updating daily time:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Add this function to check if the token is valid
 function isTokenValid() {
     const token = window.auth.getToken();

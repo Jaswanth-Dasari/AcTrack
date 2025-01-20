@@ -25,18 +25,16 @@ const tasksPerPage = 10;
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    if (!window.auth.isAuthenticated()) {
+        window.location.href = '/login.html';
+        return;
+    }
     initializeDashboard();
     setupEventListeners();
     setupSearch();
 });
 
 function initializeDashboard() {
-    // Check authentication
-    if (!window.auth.isAuthenticated()) {
-        window.location.href = 'login.html';
-        return;
-    }
-
     // Load initial data
     loadUserStats();
     loadTasks();
@@ -311,61 +309,61 @@ async function handleTaskSubmit(e) {
     
     try {
         clearMessages();
-
-        const formData = new FormData(e.target);
-        const userId = window.auth.getUserId();
-
-        // Get selected days
-        const selectedDays = Array.from(document.querySelectorAll('input[name="days"]:checked'))
-            .map(checkbox => checkbox.value);
-        
+    
+    const formData = new FormData(e.target);
+    const userId = window.auth.getUserId();
+    
+    // Get selected days
+    const selectedDays = Array.from(document.querySelectorAll('input[name="days"]:checked'))
+        .map(checkbox => checkbox.value);
+    
         // Store values that should be kept for Save & Add Another
         const projectValue = formData.get('project');
         const sprintValue = formData.get('sprint');
         const epicValue = formData.get('epic');
         
-        // Create task schema
-        const taskData = {
-            taskId: `task_${Date.now()}`,
-            userId: userId,
+    // Create task schema
+    const taskData = {
+        taskId: `task_${Date.now()}`,
+        userId: userId,
+        projectId: formData.get('project') || null,
+        title: formData.get('task-title') || null,
+        description: formData.get('description') || null,
+        status: formData.get('task-status') || 'Not Started',
+        priority: 'High',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        metadata: {
+            sprint: formData.get('sprint') || null,
+            epic: formData.get('epic') || null,
+            labels: [],
+            dependencies: [],
+            attachments: []
+        },
+        timing: {
+            startDate: formData.get('start-date') || null,
+            dueDate: formData.get('due-date') || null,
+            estimate: formData.get('estimate') || null,
+            worked: formData.get('worked') || null,
+            timeLogged: '0 Hours'
+        },
+        recurring: {
+            isRecurring: formData.get('recurring') === 'on',
+            untilDate: formData.get('until-date') || null,
+            days: selectedDays.length > 0 ? selectedDays : null
+        },
+        assignee: {
+            userId: formData.get('assignee') || userId,
+            assignedAt: new Date().toISOString()
+        },
+        project: {
             projectId: formData.get('project') || null,
-            title: formData.get('task-title') || null,
-            description: formData.get('description') || null,
-            status: formData.get('task-status') || 'Not Started',
-            priority: 'High',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            metadata: {
-                sprint: formData.get('sprint') || null,
-                epic: formData.get('epic') || null,
-                labels: [],
-                dependencies: [],
-                attachments: []
-            },
-            timing: {
-                startDate: formData.get('start-date') || null,
-                dueDate: formData.get('due-date') || null,
-                estimate: formData.get('estimate') || null,
-                worked: formData.get('worked') || null,
-                timeLogged: '0 Hours'
-            },
-            recurring: {
-                isRecurring: formData.get('recurring') === 'on',
-                untilDate: formData.get('until-date') || null,
-                days: selectedDays.length > 0 ? selectedDays : null
-            },
-            assignee: {
-                userId: formData.get('assignee') || userId,
-                assignedAt: new Date().toISOString()
-            },
-            project: {
-                projectId: formData.get('project') || null,
-                projectName: formData.get('project') ? projectSelect.options[projectSelect.selectedIndex].text : null
-            }
-        };
+            projectName: formData.get('project') ? projectSelect.options[projectSelect.selectedIndex].text : null
+        }
+    };
 
-        createNotificationContainer();
-        
+    createNotificationContainer();
+    
         // Get the button that triggered the submit
         const submitButton = e.submitter;
         const isSaveAndAdd = submitButton.value === 'saveAndAdd';
@@ -885,11 +883,11 @@ async function loadUserStats() {
                 'Authorization': `Bearer ${window.auth.getToken()}`
             }
         });
-
+        
         if (!response.ok) {
             throw new Error('Failed to load user stats');
         }
-
+        
         const dailyTimes = await response.json();
         
         // Calculate total seconds from all daily time entries
@@ -1267,4 +1265,37 @@ function updatePagination(totalTasks) {
             }
         });
     });
+} 
+
+// Function to update daily time
+async function updateDailyTime(taskId, seconds, title, projectName) {
+    try {
+        const userId = window.auth.getUserId();
+        const today = new Date().toISOString().split('T')[0];
+
+        const response = await fetch('https://actracker.onrender.com/api/daily-time/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${window.auth.getToken()}`
+            },
+            body: JSON.stringify({
+                userId,
+                date: today,
+                taskId,
+                seconds,
+                title,
+                projectName
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to update daily time');
+        }
+
+        await loadUserStats();
+    } catch (error) {
+        console.error('Error updating daily time:', error);
+        displayNotification('Failed to update time tracking', 'error');
+    }
 } 
