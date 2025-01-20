@@ -950,21 +950,21 @@ async function completeTask() {
         );
         
         // Update task status to completed
-        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/complete/${selectedTask.taskId}`, {
+        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/update-status`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
+                taskId: selectedTask.taskId,
                 userId: userId,
                 status: 'Completed',
                 updatedAt: new Date().toISOString(),
                 timing: {
                     ...selectedTask.timing,
                     worked: ((selectedTask.timing?.worked || 0) + (elapsedSeconds / 3600)).toFixed(2)
-                },
-                projectId: projectId
+                }
             })
         });
 
@@ -983,33 +983,51 @@ async function completeTask() {
             throw new Error(errorMessage);
         }
 
-        const responseData = await taskResponse.json();
-        
         // Reset timer state
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
         isTracking = false;
         playButton.innerHTML = '<i class="fas fa-play"></i>';
         
-        // Update the task in the allTasks array
+        // Update the task status in the local arrays and UI immediately
+        selectedTask.status = 'Completed';
+        
         const taskIndex = allTasks.findIndex(task => task.taskId === selectedTask.taskId);
         if (taskIndex !== -1) {
-            allTasks[taskIndex] = { ...allTasks[taskIndex], ...responseData.task };
+            allTasks[taskIndex].status = 'Completed';
             // Update filtered tasks if they exist
             const filteredIndex = filteredTasks.findIndex(task => task.taskId === selectedTask.taskId);
             if (filteredIndex !== -1) {
-                filteredTasks[filteredIndex] = { ...filteredTasks[filteredIndex], ...responseData.task };
+                filteredTasks[filteredIndex].status = 'Completed';
             }
-            // Re-render the tasks to show the updated status
-            renderTasks(filteredTasks.length ? filteredTasks : allTasks);
         }
+        
+        // Re-render the tasks to show the updated status
+        renderTasks(filteredTasks.length ? filteredTasks : allTasks);
+        
+        // Update the task info display with completed status
+        const formattedDate = selectedTask.timing?.dueDate ? formatDate(selectedTask.timing.dueDate) : 'No date';
+        projectInfo.innerHTML = `
+            <div class="selected-task-info">
+                <p class="project-name">${selectedTask.project?.projectName || 'No Project'}</p>
+                <p class="task-name">${selectedTask.title}</p>
+                <div class="task-meta">
+                    <span class="due-date">Due Time: ${formattedDate}</span>
+                    <span class="priority">Priority: ${selectedTask.priority}</span>
+                    <span class="status">Status: Completed</span>
+                </div>
+                <div class="task-details">
+                    <p class="assigned-by">Assigned to: ${selectedTask.assignee?.userId}</p>
+                    <p class="task-description">${selectedTask.description || 'No description'}</p>
+                </div>
+            </div>
+        `;
         
         // Show completion modal
         showCompletionModal();
         
-        // Refresh stats and tasks
+        // Refresh stats
         await loadUserStats();
-        await loadTasks();
         
         displayNotification('Task completed successfully', 'success');
     } catch (error) {
