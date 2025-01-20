@@ -251,42 +251,40 @@ async function stopTimer() {
         const userId = window.auth.getUserId();
         const projectId = selectedTask.project.projectId;
         
-        // Stop tracking
+        // First stop the timer interval
+        clearInterval(timerInterval);
+        
+        // Stop tracking in electron
         await window.electronAPI.stopTrackingBrowserActivity(userId, projectId, elapsedSeconds);
         
         // Update daily time in the database
-        const response = await fetch('https://actracker.onrender.com/api/daily-time/update', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${window.auth.getToken()}`
-            },
-            body: JSON.stringify({
-                userId,
-                seconds: elapsedSeconds
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to update daily time');
-        }
-
-        const data = await response.json();
-        dailyTotalSeconds = data.totalSeconds;
-        document.querySelector('.timer-display').textContent = data.formattedTime;
+        await updateDailyTime(
+            selectedTask.taskId,
+            elapsedSeconds,
+            selectedTask.title,
+            selectedTask.project.projectName
+        );
         
-        // Reset task timer
-        clearInterval(timerInterval);
+        // Reset timer state
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
         isTracking = false;
         playButton.innerHTML = '<i class="fas fa-play"></i>';
         
         // Refresh stats
-        loadUserStats();
+        await loadUserStats();
+        
+        displayNotification('Timer stopped successfully', 'success');
     } catch (error) {
         console.error('Error stopping timer:', error);
-        displayNotification('Failed to stop timer', 'error');
+        displayNotification('Failed to stop timer: ' + error.message, 'error');
+        
+        // Reset UI even if there's an error
+        clearInterval(timerInterval);
+        elapsedSeconds = 0;
+        elapsedTime.textContent = '00:00:00';
+        isTracking = false;
+        playButton.innerHTML = '<i class="fas fa-play"></i>';
     }
 }
 
@@ -714,10 +712,10 @@ function renderTasks(tasks) {
                     <defs>
                     <filter id="filter0_d_1340_22343" x="13.3891" y="34.5207" width="190.697" height="203.764" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
                     <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-                    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+                    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
                     <feOffset dy="16.9521"/>
                     <feGaussianBlur stdDeviation="16.9521"/>
-                    <feColorMatrix type="matrix" values="0 0 0 0 0.397708 0 0 0 0 0.47749 0 0 0 0 0.575 0 0 0 0.27 0"/>
+                    <feColorMatrix type="matrix" values="0 0 0 0 0.397708 0 0 0 0 0.47749 0 0 0 0 0 0 0.575 0 0 0 0.27 0"/>
                     <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1340_22343"/>
                     <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1340_22343" result="shape"/>
                     </filter>
@@ -803,7 +801,7 @@ function selectTask(task) {
             <div class="no-task-container">
                 <svg width="173" height="144" viewBox="0 0 173 144" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M120.9 79C123.164 79 125 77.1644 125 74.9C125 72.6356 123.164 70.8 120.9 70.8C118.635 70.8 116.8 72.6356 116.8 74.9C116.8 77.1644 118.635 79 120.9 79Z" fill="#EAEEF9"/>
-                    <path d="M113.027 90.4392C114.573 90.4392 115.827 89.1856 115.827 87.6392C115.827 86.0928 114.573 84.8392 113.027 84.8392C111.48 84.8392 110.227 86.0928 110.227 87.6392C110.227 89.1856 111.48 90.4392 113.027 90.4392Z" fill="#EAEEF9"/>
+                    <path d="M113.027 90.4392C114.573 90.4392 115.827 89.1856 115.827 87.6392C115.827 86.0928 114.573 84.8392C113.027 84.8392C111.48 84.8392C110.227 86.0928 110.227 87.6392C110.227 89.1856 111.48 90.4392 113.027 90.4392Z" fill="#EAEEF9"/>
                     <path d="M22.3 22C23.8464 22 25.1 20.7464 25.1 19.2C25.1 17.6536 23.8464 16.4 22.3 16.4C20.7536 16.4 19.5 17.6536 19.5 19.2C19.5 20.7464 20.7536 22 22.3 22Z" fill="#EAEEF9"/>
                     <path d="M5.2 76C8.07188 76 10.4 73.6719 10.4 70.8C10.4 67.9281 8.07188 65.6 5.2 65.6C2.32812 65.6 0 67.9281 0 70.8C0 73.6719 2.32812 76 5.2 76Z" fill="#EAEEF9"/>
                     <path d="M68.3499 102.1C96.3499 102.1 119.05 79.4 119.05 51.3C119.05 23.2 96.3499 0.5 68.3499 0.5C40.3499 0.5 17.6499 23.2 17.6499 51.3C17.6499 79.4 40.3499 102.1 68.3499 102.1Z" fill="#EAEEF9"/>
@@ -934,55 +932,70 @@ async function completeTask() {
     
     try {
         const userId = window.auth.getUserId();
+        const token = window.auth.getToken();
         const projectId = selectedTask.project.projectId;
         
-        // Stop tracking
+        // First stop the timer interval
+        clearInterval(timerInterval);
+        
+        // Stop tracking in electron
         await window.electronAPI.stopTrackingBrowserActivity(userId, projectId, elapsedSeconds);
         
         // Update daily time in the database
-        const timeResponse = await fetch('https://actracker.onrender.com/api/daily-time/update', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${window.auth.getToken()}`
-            },
-            body: JSON.stringify({
-                userId,
-                seconds: elapsedSeconds
-            })
-        });
-
-        if (!timeResponse.ok) {
-            throw new Error('Failed to update daily time');
-        }
-
-        const timeData = await timeResponse.json();
-        dailyTotalSeconds = timeData.totalSeconds;
-        document.querySelector('.timer-display').textContent = timeData.formattedTime;
+        await updateDailyTime(
+            selectedTask.taskId,
+            elapsedSeconds,
+            selectedTask.title,
+            selectedTask.project.projectName
+        );
         
         // Update task status to completed
-        const taskResponse = await fetch(`https://actracker.onrender.com/api/tasks/${selectedTask.taskId}`, {
+        const taskResponse = await fetch(`https://actracker.onrender.com/api/tasks/update/${selectedTask.taskId}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${window.auth.getToken()}`
+                'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
                 status: 'Completed',
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                timing: {
+                    ...selectedTask.timing,
+                    worked: ((selectedTask.timing?.worked || 0) + (elapsedSeconds / 3600)).toFixed(2)
+                }
             })
         });
 
         if (!taskResponse.ok) {
-            throw new Error('Failed to update task status');
+            let errorMessage = 'Failed to update task status';
+            try {
+                const errorData = await taskResponse.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                // If JSON parsing fails, use the status text
+                errorMessage = `${errorMessage}: ${taskResponse.statusText}`;
+            }
+            throw new Error(errorMessage);
         }
 
-        // Reset timer
-        clearInterval(timerInterval);
+        // Reset timer state
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
         isTracking = false;
         playButton.innerHTML = '<i class="fas fa-play"></i>';
+        
+        // Update the task in the allTasks array
+        const taskIndex = allTasks.findIndex(task => task.taskId === selectedTask.taskId);
+        if (taskIndex !== -1) {
+            allTasks[taskIndex].status = 'Completed';
+            // Update filtered tasks if they exist
+            const filteredIndex = filteredTasks.findIndex(task => task.taskId === selectedTask.taskId);
+            if (filteredIndex !== -1) {
+                filteredTasks[filteredIndex].status = 'Completed';
+            }
+            // Re-render the tasks to show the updated status
+            renderTasks(filteredTasks.length ? filteredTasks : allTasks);
+        }
         
         // Show completion modal
         showCompletionModal();
@@ -991,9 +1004,17 @@ async function completeTask() {
         await loadUserStats();
         await loadTasks();
         
+        displayNotification('Task completed successfully', 'success');
     } catch (error) {
         console.error('Error completing task:', error);
-        displayNotification('Failed to complete task', 'error');
+        displayNotification('Failed to complete task: ' + error.message, 'error');
+        
+        // Reset UI even if there's an error
+        clearInterval(timerInterval);
+        elapsedSeconds = 0;
+        elapsedTime.textContent = '00:00:00';
+        isTracking = false;
+        playButton.innerHTML = '<i class="fas fa-play"></i>';
     }
 }
 
@@ -1271,31 +1292,45 @@ function updatePagination(totalTasks) {
 async function updateDailyTime(taskId, seconds, title, projectName) {
     try {
         const userId = window.auth.getUserId();
+        const token = window.auth.getToken();
+        
+        if (!userId || !token) {
+            throw new Error('User not authenticated');
+        }
+
         const today = new Date().toISOString().split('T')[0];
 
         const response = await fetch('https://actracker.onrender.com/api/daily-time/update', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${window.auth.getToken()}`
+                'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
                 userId,
                 date: today,
-                taskId,
-                seconds,
-                title,
-                projectName
+                taskId: taskId || 'default',
+                seconds: seconds || 0,
+                title: title || 'Untitled Task',
+                projectName: projectName || 'Default Project'
             })
         });
 
         if (!response.ok) {
-            throw new Error('Failed to update daily time');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update daily time');
         }
 
+        const data = await response.json();
+        console.log('Daily time updated successfully:', data);
+        
+        // Refresh the stats display
         await loadUserStats();
+        
+        return data;
     } catch (error) {
         console.error('Error updating daily time:', error);
-        displayNotification('Failed to update time tracking', 'error');
+        displayNotification('Failed to update time tracking: ' + error.message, 'error');
+        throw error;
     }
 } 
