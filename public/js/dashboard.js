@@ -950,13 +950,14 @@ async function completeTask() {
         );
         
         // Update task status to completed
-        const taskResponse = await fetch(`https://actracker.onrender.com/api/tasks/${selectedTask.taskId}`, {
+        const taskResponse = await fetch(`https://actracker.onrender.com/api/tasks/update`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
+                taskId: selectedTask.taskId,
                 userId: userId,
                 status: 'Completed',
                 updatedAt: new Date().toISOString(),
@@ -974,8 +975,10 @@ async function completeTask() {
                 const parsedError = JSON.parse(errorData);
                 errorMessage = parsedError.error || errorMessage;
             } catch (e) {
-                // If JSON parsing fails, use the raw error text
-                errorMessage = errorData || errorMessage;
+                // If JSON parsing fails, use the raw error text if it's not HTML
+                if (!errorData.includes('<!DOCTYPE html>')) {
+                    errorMessage = errorData;
+                }
             }
             throw new Error(errorMessage);
         }
