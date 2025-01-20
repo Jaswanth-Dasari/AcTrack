@@ -950,13 +950,14 @@ async function completeTask() {
         );
         
         // Update task status to completed
-        const taskResponse = await fetch(`https://actracker.onrender.com/api/tasks/update/${selectedTask.taskId}`, {
+        const taskResponse = await fetch(`https://actracker.onrender.com/api/tasks/${selectedTask.taskId}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
+                userId: userId,
                 status: 'Completed',
                 updatedAt: new Date().toISOString(),
                 timing: {
@@ -967,13 +968,14 @@ async function completeTask() {
         });
 
         if (!taskResponse.ok) {
+            const errorData = await taskResponse.text();
             let errorMessage = 'Failed to update task status';
             try {
-                const errorData = await taskResponse.json();
-                errorMessage = errorData.error || errorMessage;
+                const parsedError = JSON.parse(errorData);
+                errorMessage = parsedError.error || errorMessage;
             } catch (e) {
-                // If JSON parsing fails, use the status text
-                errorMessage = `${errorMessage}: ${taskResponse.statusText}`;
+                // If JSON parsing fails, use the raw error text
+                errorMessage = errorData || errorMessage;
             }
             throw new Error(errorMessage);
         }
