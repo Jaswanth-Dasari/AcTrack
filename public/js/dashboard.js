@@ -597,7 +597,7 @@ function highlightField(fieldName) {
     formGroup.appendChild(errorMessage);
 }
 
-// Update the style with form validation styles
+// Add the validation styles to the document
 const validationStyles = `
     .form-group.has-error input,
     .form-group.has-error select,
@@ -626,13 +626,13 @@ const validationStyles = `
     }
 `;
 
-// Add the validation styles to the existing style element
-style.textContent += validationStyles;
+// Create and append the validation styles
+const validationStyleElement = document.createElement('style');
+validationStyleElement.textContent = validationStyles;
+document.head.appendChild(validationStyleElement);
 
 // Add required class to required form groups
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (existing DOMContentLoaded code)
-    
     // Add required indicators
     const requiredFields = ['task-title', 'project', 'due-date'];
     requiredFields.forEach(fieldId => {
@@ -950,21 +950,21 @@ async function completeTask() {
         );
         
         // Update task status to completed
-        const taskResponse = await fetch(`https://actracker.onrender.com/api/tasks/update`, {
+        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/complete/${selectedTask.taskId}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-                taskId: selectedTask.taskId,
                 userId: userId,
                 status: 'Completed',
                 updatedAt: new Date().toISOString(),
                 timing: {
                     ...selectedTask.timing,
                     worked: ((selectedTask.timing?.worked || 0) + (elapsedSeconds / 3600)).toFixed(2)
-                }
+                },
+                projectId: projectId
             })
         });
 
@@ -983,6 +983,8 @@ async function completeTask() {
             throw new Error(errorMessage);
         }
 
+        const responseData = await taskResponse.json();
+        
         // Reset timer state
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
@@ -992,11 +994,11 @@ async function completeTask() {
         // Update the task in the allTasks array
         const taskIndex = allTasks.findIndex(task => task.taskId === selectedTask.taskId);
         if (taskIndex !== -1) {
-            allTasks[taskIndex].status = 'Completed';
+            allTasks[taskIndex] = { ...allTasks[taskIndex], ...responseData.task };
             // Update filtered tasks if they exist
             const filteredIndex = filteredTasks.findIndex(task => task.taskId === selectedTask.taskId);
             if (filteredIndex !== -1) {
-                filteredTasks[filteredIndex].status = 'Completed';
+                filteredTasks[filteredIndex] = { ...filteredTasks[filteredIndex], ...responseData.task };
             }
             // Re-render the tasks to show the updated status
             renderTasks(filteredTasks.length ? filteredTasks : allTasks);
