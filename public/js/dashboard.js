@@ -950,14 +950,13 @@ async function completeTask() {
         );
         
         // Update task status to completed
-        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/update-status`, {
+        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-                taskId: selectedTask.taskId,
                 userId: userId,
                 status: 'Completed',
                 updatedAt: new Date().toISOString(),
@@ -983,6 +982,8 @@ async function completeTask() {
             throw new Error(errorMessage);
         }
 
+        const updatedTask = await taskResponse.json();
+
         // Reset timer state
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
@@ -994,11 +995,11 @@ async function completeTask() {
         
         const taskIndex = allTasks.findIndex(task => task.taskId === selectedTask.taskId);
         if (taskIndex !== -1) {
-            allTasks[taskIndex].status = 'Completed';
+            allTasks[taskIndex] = { ...allTasks[taskIndex], ...updatedTask };
             // Update filtered tasks if they exist
             const filteredIndex = filteredTasks.findIndex(task => task.taskId === selectedTask.taskId);
             if (filteredIndex !== -1) {
-                filteredTasks[filteredIndex].status = 'Completed';
+                filteredTasks[filteredIndex] = { ...filteredTasks[filteredIndex], ...updatedTask };
             }
         }
         
