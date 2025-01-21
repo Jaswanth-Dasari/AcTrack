@@ -1335,6 +1335,34 @@ app.get('/api/tasks/:userId', authenticateToken, async (req, res) => {
     }
 });
 
+app.patch('/api/tasks/:taskId', authenticateToken, async (req, res) => {
+    try {
+        const task = await Task.findOneAndUpdate(
+            { taskId: req.params.taskId },
+            req.body,
+            { new: true }
+        );
+        if (!task) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+        res.json(task);
+    } catch (error) {
+        console.error('Error updating task:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/tasks/create', authenticateToken, async (req, res) => {
+    try {
+        const task = new Task(req.body);
+        await task.save();
+        res.status(201).json(task);
+    } catch (error) {
+        console.error('Error creating task:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Update the daily time endpoint
 app.get('/api/daily-time/all/:userId', authenticateToken, async (req, res) => {
     try {

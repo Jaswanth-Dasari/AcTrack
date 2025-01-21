@@ -301,7 +301,6 @@ function formatTime(hours, minutes, seconds) {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-// Task Functions
 async function handleTaskSubmit(e) {
     e.preventDefault();
     
@@ -341,32 +340,19 @@ async function handleTaskSubmit(e) {
             description: formData.get('description'),
             status: formData.get('task-status') || 'Not Started',
             priority: calculatePriority(formData.get('due-date')),
-            attachments: [],
+            dueDate: formData.get('due-date'),
+            projectName: formData.get('project') ? projectSelect.options[projectSelect.selectedIndex].text : null,
             timing: {
                 startDate: formData.get('start-date') || null,
                 dueDate: formData.get('due-date') || null,
                 estimate: formData.get('estimate') || null,
                 worked: formData.get('worked') || 0,
                 timeLogged: '0 Hours'
-            },
-            recurring: {
-                isRecurring: formData.get('recurring') === 'on',
-                untilDate: formData.get('until-date') || null,
-                days: selectedDays.length > 0 ? selectedDays : null
-            },
-            assignee: {
-                userId: formData.get('assignee') || userId,
-                assignedAt: new Date().toISOString()
-            },
-            project: {
-                projectId: formData.get('project') || null,
-                projectName: formData.get('project') ? projectSelect.options[projectSelect.selectedIndex].text : null
             }
         };
 
         createNotificationContainer();
         
-        // Get the button that triggered the submit
         const submitButton = e.submitter;
         const isSaveAndAdd = submitButton.value === 'saveAndAdd';
         
@@ -399,17 +385,14 @@ async function handleTaskSubmit(e) {
         allTasks.unshift(data);
         renderTasks(allTasks);
         
-        // Show success message
         displayNotification('Task created successfully', 'success');
         
-        // Reset form or close modal based on button clicked
         if (isSaveAndAdd) {
             e.target.reset();
         } else {
             closeModal();
         }
         
-        // Refresh tasks list
         await loadTasks();
         
     } catch (error) {
@@ -417,7 +400,6 @@ async function handleTaskSubmit(e) {
         displayNotification('Failed to create task: ' + error.message, 'error');
     }
 }
-
 function createNotificationContainer() {
     let container = document.querySelector('.notification-container');
     if (!container) {
@@ -969,6 +951,7 @@ async function completeTask() {
                 'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
+                userId: userId,
                 status: 'Completed',
                 timing: {
                     ...selectedTask.timing,
@@ -985,7 +968,6 @@ async function completeTask() {
                 const parsedError = JSON.parse(errorData);
                 errorMessage = parsedError.error || errorMessage;
             } catch (e) {
-                // If JSON parsing fails, use the raw error text if it's not HTML
                 if (!errorData.includes('<!DOCTYPE html>')) {
                     errorMessage = errorData;
                 }
