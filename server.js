@@ -1354,7 +1354,66 @@ app.patch('/api/tasks/:taskId', authenticateToken, async (req, res) => {
 
 app.post('/api/tasks/create', authenticateToken, async (req, res) => {
     try {
-        const task = new Task(req.body);
+        const taskId = `task_${Date.now()}`;
+        const {
+            userId,
+            title,
+            description,
+            status = 'Not Started',
+            priority = 'Medium',
+            projectId,
+            projectName,
+            sprint,
+            epic,
+            labels = [],
+            dependencies = [],
+            attachments = [],
+            startDate,
+            dueDate,
+            estimate,
+            worked,
+            isRecurring = false,
+            untilDate,
+            days = [],
+            assigneeUserId
+        } = req.body;
+
+        const task = new Task({
+            userId,
+            taskId,
+            title,
+            description,
+            status,
+            priority,
+            metadata: {
+                sprint,
+                epic
+            },
+            labels,
+            dependencies,
+            attachments,
+            timing: {
+                startDate: startDate ? new Date(startDate) : null,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                estimate,
+                worked,
+                timeLogged: "0 Hours"
+            },
+            recurring: {
+                isRecurring,
+                untilDate: untilDate ? new Date(untilDate) : null,
+                days
+            },
+            assignee: assigneeUserId ? {
+                userId: assigneeUserId,
+                assignedAt: new Date()
+            } : null,
+            project: {
+                projectId,
+                projectName
+            }
+        });
+
         await task.save();
         res.status(201).json(task);
     } catch (error) {
@@ -1578,7 +1637,6 @@ const dailyTimeSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
-// Task Schema
 const taskSchema = new mongoose.Schema({
     userId: {
         type: String,
@@ -1594,18 +1652,46 @@ const taskSchema = new mongoose.Schema({
         required: true
     },
     description: String,
-    projectName: String,
     status: {
         type: String,
-        enum: ['pending', 'completed'],
-        default: 'pending'
+        enum: ['Not Started', 'In Progress', 'Completed', 'pending'],
+        default: 'Not Started'
     },
     priority: {
         type: String,
         enum: ['Low', 'Medium', 'High', 'Overdue'],
         default: 'Medium'
     },
-    dueDate: Date
+    metadata: {
+        sprint: String,
+        epic: String
+    },
+    labels: [String],
+    dependencies: [String],
+    attachments: [String],
+    timing: {
+        startDate: Date,
+        dueDate: Date,
+        estimate: Number,
+        worked: Number,
+        timeLogged: String
+    },
+    recurring: {
+        isRecurring: {
+            type: Boolean,
+            default: false
+        },
+        untilDate: Date,
+        days: [String]
+    },
+    assignee: {
+        userId: String,
+        assignedAt: Date
+    },
+    project: {
+        projectId: String,
+        projectName: String
+    }
 }, { timestamps: true });
 
 const Task = mongoose.model('Task', taskSchema);
