@@ -356,7 +356,7 @@ async function handleTaskSubmit(e) {
         const submitButton = e.submitter;
         const isSaveAndAdd = submitButton.value === 'saveAndAdd';
         
-        const response = await fetch(`${config.API_BASE_URL}/api/tasks/create`, {
+        const response = await fetch(`${config.API_BASE_URL}/api/tasks/create`, {  // Use the correct endpoint
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -944,7 +944,7 @@ async function completeTask() {
         const newWorkedHours = ((selectedTask.timing?.worked || 0) + (elapsedSeconds / 3600)).toFixed(2);
         
         // Update task status to completed
-        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
+        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {  // Ensure this matches the server's endpoint
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
