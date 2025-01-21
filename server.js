@@ -1357,11 +1357,11 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         const taskId = `task_${Date.now()}`;
         const {
             userId,
+            projectId,
             title,
             description,
             status = 'Not Started',
             priority = 'Medium',
-            projectId,
             projectName,
             sprint,
             epic,
@@ -1378,16 +1378,25 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             assigneeUserId
         } = req.body;
 
+        // Validate required fields
+        if (!userId || !projectId || !title) {
+            return res.status(400).json({ 
+                error: 'Missing required fields',
+                details: 'userId, projectId, and title are required'
+            });
+        }
+
         const task = new Task({
-            userId,
             taskId,
+            userId,
+            projectId,
             title,
             description,
             status,
             priority,
             metadata: {
-                sprint,
-                epic
+                sprint: sprint || null,
+                epic: epic || null
             },
             labels,
             dependencies,
@@ -1395,14 +1404,14 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             timing: {
                 startDate: startDate ? new Date(startDate) : null,
                 dueDate: dueDate ? new Date(dueDate) : null,
-                estimate,
-                worked,
+                estimate: estimate || null,
+                worked: worked || 0,
                 timeLogged: "0 Hours"
             },
             recurring: {
                 isRecurring,
                 untilDate: untilDate ? new Date(untilDate) : null,
-                days
+                days: days.map(day => day.toLowerCase())
             },
             assignee: assigneeUserId ? {
                 userId: assigneeUserId,
@@ -1410,7 +1419,7 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             } : null,
             project: {
                 projectId,
-                projectName
+                projectName: projectName || null
             }
         });
 
@@ -1638,14 +1647,18 @@ const dailyTimeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const taskSchema = new mongoose.Schema({
-    userId: {
-        type: String,
-        required: true
-    },
     taskId: {
         type: String,
         required: true,
         unique: true
+    },
+    userId: {
+        type: String,
+        required: true
+    },
+    projectId: {
+        type: String,
+        required: true
     },
     title: {
         type: String,
@@ -1654,12 +1667,12 @@ const taskSchema = new mongoose.Schema({
     description: String,
     status: {
         type: String,
-        enum: ['Not Started', 'In Progress', 'Completed', 'pending'],
+        enum: ['Not Started', 'In Progress', 'Completed'],
         default: 'Not Started'
     },
     priority: {
         type: String,
-        enum: ['Low', 'Medium', 'High', 'Overdue'],
+        enum: ['Low', 'Medium', 'High'],
         default: 'Medium'
     },
     metadata: {
@@ -1674,7 +1687,10 @@ const taskSchema = new mongoose.Schema({
         dueDate: Date,
         estimate: Number,
         worked: Number,
-        timeLogged: String
+        timeLogged: {
+            type: String,
+            default: "0 Hours"
+        }
     },
     recurring: {
         isRecurring: {
@@ -1682,14 +1698,20 @@ const taskSchema = new mongoose.Schema({
             default: false
         },
         untilDate: Date,
-        days: [String]
+        days: [{
+            type: String,
+            enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        }]
     },
     assignee: {
         userId: String,
         assignedAt: Date
     },
     project: {
-        projectId: String,
+        projectId: {
+            type: String,
+            required: true
+        },
         projectName: String
     }
 }, { timestamps: true });
