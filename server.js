@@ -1357,9 +1357,10 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         const taskId = `task_${Date.now()}`;
         const {
             userId,
+            projectId,
             title,
             description,
-            status,
+            status = 'Not Started',
             priority,
             sprint,
             epic,
@@ -1374,25 +1375,66 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             untilDate,
             days,
             assigneeUserId,
-            projectId,
+            project,
             projectName
         } = req.body;
 
         // Validate required fields
-        if (!userId || !projectId || !projectName || !startDate || !dueDate || !title) {
+        if (!userId) {
             return res.status(400).json({ 
                 error: 'Missing required fields',
-                details: 'userId, projectId, projectName, title, startDate, and dueDate are required'
+                details: 'userId is required'
             });
         }
+
+        // Parse dates properly ensuring timezone consistency
+        const parsedStartDate = startDate ? new Date(startDate) : null;
+        const parsedDueDate = dueDate ? new Date(dueDate) : null;
+
+        // Get project details
+        let projectDetails = null;
+        if (project && typeof project === 'string') {
+            try {
+                projectDetails = JSON.parse(project);
+            } catch (e) {
+                console.error('Error parsing project details:', e);
+            }
+        }
+
+        // Calculate priority based on due date if not provided
+        let calculatedPriority = priority;
+        if (parsedDueDate && !priority) {
+            const today = new Date();
+            const daysUntilDue = Math.ceil((parsedDueDate - today) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntilDue <= 3) {
+                calculatedPriority = 'High';
+            } else if (daysUntilDue <= 7) {
+                calculatedPriority = 'Medium';
+            } else {
+                calculatedPriority = 'Low';
+            }
+        }
+
+        // Determine project name and ID
+        const finalProjectId = projectDetails?.projectId || projectId;
+        const finalProjectName = projectDetails?.name || projectDetails?.projectName || projectName || 'No Project';
+
+        console.log('Creating task with project details:', {
+            projectId: finalProjectId,
+            projectName: finalProjectName,
+            startDate: parsedStartDate,
+            dueDate: parsedDueDate
+        });
 
         const task = new Task({
             taskId,
             userId,
+            projectId: finalProjectId,
             title,
             description,
             status,
-            priority,
+            priority: calculatedPriority || 'Medium',
             metadata: {
                 sprint,
                 epic,
@@ -1401,29 +1443,30 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
                 attachments: attachments || []
             },
             timing: {
-                startDate: new Date(startDate),
-                dueDate: new Date(dueDate),
-                estimate,
-                worked,
+                startDate: parsedStartDate,
+                dueDate: parsedDueDate,
+                estimate: Number(estimate) || 0,
+                worked: Number(worked) || 0,
                 timeLogged: '0 Hours'
             },
             recurring: {
-                isRecurring: isRecurring || false,
+                isRecurring: Boolean(isRecurring),
                 untilDate: untilDate ? new Date(untilDate) : null,
-                days: days || []
+                days: Array.isArray(days) ? days : []
             },
             assignee: assigneeUserId ? {
                 userId: assigneeUserId,
                 assignedAt: new Date()
             } : null,
             project: {
-                projectId,
-                projectName
+                projectId: finalProjectId,
+                projectName: finalProjectName
             }
         });
 
-        await task.save();
-        res.status(201).json(task);
+        const savedTask = await task.save();
+        console.log('Task saved successfully:', savedTask);
+        res.status(201).json(savedTask);
     } catch (error) {
         console.error('Error creating task:', error);
         res.status(500).json({ error: error.message });
@@ -1646,13 +1689,17 @@ const dailyTimeSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
+// Task Schema
 const taskSchema = new mongoose.Schema({
     taskId: { type: String, required: true, unique: true },
     userId: { type: String, required: true },
-    title: { type: String, required: true },
+    projectId: { type: String },
+    title: String,
     description: String,
     status: { type: String, default: 'Not Started' },
     priority: { type: String, default: 'High' },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
     metadata: {
         sprint: String,
         epic: String,
@@ -1661,8 +1708,8 @@ const taskSchema = new mongoose.Schema({
         attachments: [String]
     },
     timing: {
-        startDate: { type: Date, required: true },
-        dueDate: { type: Date, required: true },
+        startDate: Date,
+        dueDate: Date,
         estimate: Number,
         worked: Number,
         timeLogged: { type: String, default: '0 Hours' }
@@ -1677,10 +1724,11 @@ const taskSchema = new mongoose.Schema({
         assignedAt: Date
     },
     project: {
-        projectId: { type: String, required: true },
-        projectName: { type: String, required: true }
+        projectId: String,
+        projectName: String
     }
-}, { timestamps: false });
+});
+
 
 const Task = mongoose.model('Task', taskSchema);
 const DailyTime = mongoose.model('DailyTime', dailyTimeSchema);
