@@ -1357,7 +1357,6 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         const taskId = `task_${Date.now()}`;
         const {
             userId,
-            projectId,
             title,
             description,
             status,
@@ -1375,21 +1374,21 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             untilDate,
             days,
             assigneeUserId,
+            projectId,
             projectName
         } = req.body;
 
         // Validate required fields
-        if (!userId) {
+        if (!userId || !projectId || !projectName || !startDate || !dueDate || !title) {
             return res.status(400).json({ 
                 error: 'Missing required fields',
-                details: 'userId is required'
+                details: 'userId, projectId, projectName, title, startDate, and dueDate are required'
             });
         }
 
         const task = new Task({
             taskId,
             userId,
-            projectId,
             title,
             description,
             status,
@@ -1402,8 +1401,8 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
                 attachments: attachments || []
             },
             timing: {
-                startDate: startDate ? new Date(startDate) : null,
-                dueDate: dueDate ? new Date(dueDate) : null,
+                startDate: new Date(startDate),
+                dueDate: new Date(dueDate),
                 estimate,
                 worked,
                 timeLogged: '0 Hours'
@@ -1650,13 +1649,10 @@ const dailyTimeSchema = new mongoose.Schema({
 const taskSchema = new mongoose.Schema({
     taskId: { type: String, required: true, unique: true },
     userId: { type: String, required: true },
-    projectId: { type: String },
-    title: String,
+    title: { type: String, required: true },
     description: String,
     status: { type: String, default: 'Not Started' },
     priority: { type: String, default: 'High' },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now },
     metadata: {
         sprint: String,
         epic: String,
@@ -1665,8 +1661,8 @@ const taskSchema = new mongoose.Schema({
         attachments: [String]
     },
     timing: {
-        startDate: Date,
-        dueDate: Date,
+        startDate: { type: Date, required: true },
+        dueDate: { type: Date, required: true },
         estimate: Number,
         worked: Number,
         timeLogged: { type: String, default: '0 Hours' }
@@ -1681,11 +1677,10 @@ const taskSchema = new mongoose.Schema({
         assignedAt: Date
     },
     project: {
-        projectId: String,
-        projectName: String
+        projectId: { type: String, required: true },
+        projectName: { type: String, required: true }
     }
-});
-
+}, { timestamps: false });
 
 const Task = mongoose.model('Task', taskSchema);
 const DailyTime = mongoose.model('DailyTime', dailyTimeSchema);
