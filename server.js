@@ -1360,29 +1360,29 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             projectId,
             title,
             description,
-            status = 'Not Started',
-            priority = 'Medium',
-            projectName,
+            status,
+            priority,
             sprint,
             epic,
-            labels = [],
-            dependencies = [],
-            attachments = [],
+            labels,
+            dependencies,
+            attachments,
             startDate,
             dueDate,
             estimate,
             worked,
-            isRecurring = false,
+            isRecurring,
             untilDate,
-            days = [],
-            assigneeUserId
+            days,
+            assigneeUserId,
+            projectName
         } = req.body;
 
         // Validate required fields
-        if (!userId || !projectId || !title) {
+        if (!userId) {
             return res.status(400).json({ 
                 error: 'Missing required fields',
-                details: 'userId, projectId, and title are required'
+                details: 'userId is required'
             });
         }
 
@@ -1395,23 +1395,23 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             status,
             priority,
             metadata: {
-                sprint: sprint || null,
-                epic: epic || null
+                sprint,
+                epic,
+                labels: labels || [],
+                dependencies: dependencies || [],
+                attachments: attachments || []
             },
-            labels,
-            dependencies,
-            attachments,
             timing: {
                 startDate: startDate ? new Date(startDate) : null,
                 dueDate: dueDate ? new Date(dueDate) : null,
-                estimate: estimate || null,
-                worked: worked || 0,
-                timeLogged: "0 Hours"
+                estimate,
+                worked,
+                timeLogged: '0 Hours'
             },
             recurring: {
-                isRecurring,
+                isRecurring: isRecurring || false,
                 untilDate: untilDate ? new Date(untilDate) : null,
-                days: days.map(day => day.toLowerCase())
+                days: days || []
             },
             assignee: assigneeUserId ? {
                 userId: assigneeUserId,
@@ -1419,7 +1419,7 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             } : null,
             project: {
                 projectId,
-                projectName: projectName || null
+                projectName
             }
         });
 
@@ -1430,6 +1430,7 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 // Update the daily time endpoint
 app.get('/api/daily-time/all/:userId', authenticateToken, async (req, res) => {
@@ -1647,74 +1648,44 @@ const dailyTimeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const taskSchema = new mongoose.Schema({
-    taskId: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    userId: {
-        type: String,
-        required: true
-    },
-    projectId: {
-        type: String,
-        required: true
-    },
-    title: {
-        type: String,
-        required: true
-    },
+    taskId: { type: String, required: true, unique: true },
+    userId: { type: String, required: true },
+    projectId: { type: String },
+    title: String,
     description: String,
-    status: {
-        type: String,
-        enum: ['Not Started', 'In Progress', 'Completed'],
-        default: 'Not Started'
-    },
-    priority: {
-        type: String,
-        enum: ['Low', 'Medium', 'High'],
-        default: 'Medium'
-    },
+    status: { type: String, default: 'Not Started' },
+    priority: { type: String, default: 'High' },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
     metadata: {
         sprint: String,
-        epic: String
+        epic: String,
+        labels: [String],
+        dependencies: [String],
+        attachments: [String]
     },
-    labels: [String],
-    dependencies: [String],
-    attachments: [String],
     timing: {
         startDate: Date,
         dueDate: Date,
         estimate: Number,
         worked: Number,
-        timeLogged: {
-            type: String,
-            default: "0 Hours"
-        }
+        timeLogged: { type: String, default: '0 Hours' }
     },
     recurring: {
-        isRecurring: {
-            type: Boolean,
-            default: false
-        },
+        isRecurring: { type: Boolean, default: false },
         untilDate: Date,
-        days: [{
-            type: String,
-            enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        }]
+        days: [String]
     },
     assignee: {
         userId: String,
         assignedAt: Date
     },
     project: {
-        projectId: {
-            type: String,
-            required: true
-        },
+        projectId: String,
         projectName: String
     }
-}, { timestamps: true });
+});
+
 
 const Task = mongoose.model('Task', taskSchema);
 const DailyTime = mongoose.model('DailyTime', dailyTimeSchema);
