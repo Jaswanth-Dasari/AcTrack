@@ -244,17 +244,59 @@ function toggleTimer() {
     }
 }
 
-function startTimer() {
-    isTracking = true;
-    playButton.innerHTML = '<i class="fas fa-stop"></i>';
-    
-    // Start electron tracking
-    const userId = window.auth.getUserId();
-    const projectId = selectedTask.project.projectId;
-    
-    window.electronAPI.startTrackingBrowserActivity(userId, projectId);
-    
-    timerInterval = setInterval(updateTimer, 1000);
+async function startTimer() {
+    if (!selectedTask) {
+        displayNotification('Please select a task first', 'error');
+        return;
+    }
+
+    try {
+        isTracking = true;
+        playButton.innerHTML = '<i class="fas fa-stop"></i>';
+        
+        // Start electron tracking
+        const userId = window.auth.getUserId();
+        const projectId = selectedTask.project.projectId;
+        
+        // Update task status to "In Progress" if it's "Not Started"
+        if (selectedTask.status === 'Not Started') {
+            const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${window.auth.getToken()}`
+                },
+                body: JSON.stringify({
+                    status: 'In Progress'
+                })
+            });
+
+            if (taskResponse.ok) {
+                // Update local task data
+                selectedTask.status = 'In Progress';
+                
+                // Update task in arrays and re-render
+                const taskIndex = allTasks.findIndex(t => t.taskId === selectedTask.taskId);
+                if (taskIndex !== -1) {
+                    allTasks[taskIndex] = {...selectedTask};
+                    const filteredIndex = filteredTasks.findIndex(t => t.taskId === selectedTask.taskId);
+                    if (filteredIndex !== -1) {
+                        filteredTasks[filteredIndex] = {...selectedTask};
+                    }
+                    renderTasks(filteredTasks.length ? filteredTasks : allTasks);
+                }
+            }
+        }
+        
+        window.electronAPI.startTrackingBrowserActivity(userId, projectId);
+        timerInterval = setInterval(updateTimer, 1000);
+        
+    } catch (error) {
+        console.error('Error starting timer:', error);
+        displayNotification('Failed to start timer: ' + error.message, 'error');
+        isTracking = false;
+        playButton.innerHTML = '<i class="fas fa-play"></i>';
+    }
 }
 
 async function stopTimer() {
