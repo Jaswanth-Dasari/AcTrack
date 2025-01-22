@@ -301,62 +301,74 @@ function formatTime(hours, minutes, seconds) {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+// Task Functions
 async function handleTaskSubmit(e) {
     e.preventDefault();
     
     try {
-        clearFormErrors();
-        
+        clearMessages();
+    
         const formData = new FormData(e.target);
         const userId = window.auth.getUserId();
         
-        // Validate required fields
-        const requiredFields = ['task-title', 'project', 'due-date'];
-        let hasErrors = false;
+        // Get selected days
+        const selectedDays = Array.from(document.querySelectorAll('input[name="days"]:checked'))
+            .map(checkbox => checkbox.value);
         
-        requiredFields.forEach(field => {
-            if (!formData.get(field)) {
-                highlightField(field);
-                hasErrors = true;
-            }
-        });
+        // Store values that should be kept for Save & Add Another
+        const projectValue = formData.get('project');
+        const sprintValue = formData.get('sprint');
+        const epicValue = formData.get('epic');
         
-        if (hasErrors) {
-            displayNotification('Please fill in all required fields', 'error');
-            return;
-        }
+        // Get project name from select element
+        const projectSelect = document.getElementById('project');
+        const selectedProjectName = projectSelect.options[projectSelect.selectedIndex]?.text || 'No Project';
         
-        // Get selected days for recurring tasks
-        const selectedDays = [];
-        document.querySelectorAll('input[name="days"]:checked').forEach(checkbox => {
-            selectedDays.push(checkbox.value);
-        });
-        
-        // Prepare task data
+        // Create task schema
         const taskData = {
-            userId: userId,
             taskId: `task_${Date.now()}`,
-            title: formData.get('task-title'),
-            description: formData.get('description'),
+            userId: userId,
+            projectId: projectValue || null,
+            title: formData.get('task-title') || null,
+            description: formData.get('description') || null,
             status: formData.get('task-status') || 'Not Started',
-            priority: calculatePriority(formData.get('due-date')),
-            dueDate: formData.get('due-date'),
-            projectName: formData.get('project') ? projectSelect.options[projectSelect.selectedIndex].text : null,
+            priority: 'High',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            metadata: {
+                sprint: formData.get('sprint') || null,
+                epic: formData.get('epic') || null,
+                labels: [],
+                dependencies: [],
+                attachments: []
+            },
             timing: {
-                startDate: formData.get('start-date') || null,
-                dueDate: formData.get('due-date') || null,
+                startDate: formData.get('startDate') || null,
+                dueDate: formData.get('dueDate') || null,
                 estimate: formData.get('estimate') || null,
-                worked: formData.get('worked') || 0,
+                worked: formData.get('worked') || null,
                 timeLogged: '0 Hours'
+            },
+            recurring: {
+                isRecurring: formData.get('recurring') === 'on',
+                untilDate: formData.get('until-date') || null,
+                days: selectedDays.length > 0 ? selectedDays : null
+            },
+            assignee: {
+                userId: formData.get('assignee') || userId,
+                assignedAt: new Date().toISOString()
+            },
+            project: {
+                projectId: projectValue || null,
+                projectName: selectedProjectName
             }
         };
 
-        createNotificationContainer();
-        
+        // Get the button that triggered the submit
         const submitButton = e.submitter;
         const isSaveAndAdd = submitButton.value === 'saveAndAdd';
         
-        const response = await fetch(`${config.API_BASE_URL}/api/tasks/create`, {  // Use the correct endpoint
+        const response = await fetch('https://actracker.onrender.com/api/tasks/create', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -365,39 +377,37 @@ async function handleTaskSubmit(e) {
             body: JSON.stringify(taskData)
         });
         
-        if (!response.ok) {
-            const errorData = await response.text();
-            let errorMessage = 'Failed to create task';
-            try {
-                const parsedError = JSON.parse(errorData);
-                errorMessage = parsedError.error || errorMessage;
-            } catch (e) {
-                if (!errorData.includes('<!DOCTYPE html>')) {
-                    errorMessage = errorData;
-                }
-            }
-            throw new Error(errorMessage);
-        }
-
         const data = await response.json();
         
-        // Add the new task to the tasks array
-        allTasks.unshift(data);
-        renderTasks(allTasks);
+        if (!response.ok) {
+            throw new Error(data.message || data.error || 'Failed to create task');
+        }
         
-        displayNotification('Task created successfully', 'success');
+        // Show success notification
+        displayNotification('Task created successfully!', 'success');
         
+        // Refresh task list
+        await loadTasks();
+
         if (isSaveAndAdd) {
+            // Reset the form
             e.target.reset();
+            
+            // Restore values that should be kept
+            if (projectValue) document.getElementById('project').value = projectValue;
+            if (sprintValue) document.getElementById('sprint').value = sprintValue;
+            if (epicValue) document.getElementById('epic').value = epicValue;
+            
+            // Focus on the task title field
+            document.getElementById('task-title').focus();
         } else {
+            // Reset form and close modal
+            e.target.reset();
             closeModal();
         }
         
-        await loadTasks();
-        
     } catch (error) {
-        console.error('Error creating task:', error);
-        displayNotification('Failed to create task: ' + error.message, 'error');
+        displayNotification(error.message || 'Failed to create task. Please try again.', 'error');
     }
 }
 function createNotificationContainer() {

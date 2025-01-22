@@ -1375,8 +1375,7 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             untilDate,
             days,
             assigneeUserId,
-            project,
-            projectName
+            project
         } = req.body;
 
         // Validate required fields
@@ -1390,16 +1389,7 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         // Parse dates properly ensuring timezone consistency
         const parsedStartDate = startDate ? new Date(startDate) : null;
         const parsedDueDate = dueDate ? new Date(dueDate) : null;
-
-        // Get project details
-        let projectDetails = null;
-        if (project && typeof project === 'string') {
-            try {
-                projectDetails = JSON.parse(project);
-            } catch (e) {
-                console.error('Error parsing project details:', e);
-            }
-        }
+        const parsedUntilDate = untilDate ? new Date(untilDate) : null;
 
         // Calculate priority based on due date if not provided
         let calculatedPriority = priority;
@@ -1416,9 +1406,10 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             }
         }
 
-        // Determine project name and ID
-        const finalProjectId = projectDetails?.projectId || projectId;
-        const finalProjectName = projectDetails?.name || projectDetails?.projectName || projectName || 'No Project';
+        // Ensure project details are properly structured
+        const projectDetails = project || {};
+        const finalProjectId = projectDetails.projectId || projectId;
+        const finalProjectName = projectDetails.projectName || 'No Project';
 
         console.log('Creating task with project details:', {
             projectId: finalProjectId,
@@ -1451,7 +1442,7 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             },
             recurring: {
                 isRecurring: Boolean(isRecurring),
-                untilDate: untilDate ? new Date(untilDate) : null,
+                untilDate: parsedUntilDate,
                 days: Array.isArray(days) ? days : []
             },
             assignee: assigneeUserId ? {
