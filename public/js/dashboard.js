@@ -11,13 +11,11 @@ const projectInfo = document.querySelector('.project-info');
 
 // State
 let isTracking = false;
-let timerInterval = null;
 let elapsedSeconds = 0;
-let currentProject = null;
+let timerInterval;
+let totalHoursInterval;
 let selectedTask = null;
-let totalHoursInterval = null;
-let dailyTotalSeconds = 0;
-let dailyUpdateInterval = null;
+let currentProject = null;
 let allTasks = [];
 let filteredTasks = [];
 let currentPage = 1;
@@ -32,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
     setupEventListeners();
     setupSearch();
+    startTotalHoursUpdate();
 });
 
 function initializeDashboard() {
@@ -55,30 +54,19 @@ async function updateTotalHoursToday() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const response = await fetch(`https://actracker.onrender.com/api/tasks/${userId}`, {
+        // Fetch today's daily time entry
+        const response = await fetch(`${config.API_BASE_URL}/api/daily-time/${userId}`, {
             headers: {
                 'Authorization': `Bearer ${window.auth.getToken()}`
             }
         });
 
         if (!response.ok) {
-            throw new Error('Failed to load tasks');
+            throw new Error('Failed to load daily time');
         }
 
-        const tasks = await response.json();
-        
-        // Calculate total seconds worked today
-        let totalSecondsToday = 0;
-        
-        tasks.forEach(task => {
-            if (task.timing && task.timing.worked) {
-                const taskDate = new Date(task.timing.updatedAt);
-                if (taskDate >= today) {
-                    // Convert hours to seconds
-                    totalSecondsToday += parseFloat(task.timing.worked) * 3600;
-                }
-            }
-        });
+        const dailyTime = await response.json();
+        let totalSecondsToday = dailyTime.totalSeconds || 0;
 
         // Add current tracking session if active
         if (isTracking) {
@@ -91,13 +79,35 @@ async function updateTotalHoursToday() {
         const seconds = totalSecondsToday % 60;
 
         // Update the display
+        const timerDisplay = document.querySelector('.timer-display');
         timerDisplay.textContent = formatTime(hours, minutes, seconds);
+
+        // Check if we need to reset at midnight
+        const now = new Date();
+        const timeUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now;
+        
+        // Set timeout to reset at midnight
+        setTimeout(() => {
+            timerDisplay.textContent = '00:00:00';
+            // Recursively call to start the next day
+            updateTotalHoursToday();
+        }, timeUntilMidnight);
 
     } catch (error) {
         console.error('Error updating total hours today:', error);
+        const timerDisplay = document.querySelector('.timer-display');
         timerDisplay.textContent = '00:00:00';
     }
 }
+
+// Function to start updating total hours
+function startTotalHoursUpdate() {
+    // Update immediately
+    updateTotalHoursToday();
+    // Then update every minute
+    totalHoursInterval = setInterval(updateTotalHoursToday, 60000);
+}
+
 
 // Clean up interval on page unload
 window.addEventListener('beforeunload', () => {
