@@ -258,19 +258,54 @@ function startTimer() {
 }
 
 async function stopTimer() {
-    if (!isTracking) return;
+    if (!isTracking || !selectedTask) return;
 
     try {
         const userId = window.auth.getUserId();
         const projectId = selectedTask.project.projectId;
         
-        // First stop the timer interval
         clearInterval(timerInterval);
         
-        // Stop tracking in electron
         await window.electronAPI.stopTrackingBrowserActivity(userId, projectId, elapsedSeconds);
         
-        // Update daily time in the database
+        // Parse existing time logged
+        let existingHours = 0;
+        let existingMinutes = 0;
+        if (selectedTask.timing?.timeLogged) {
+            const timeMatch = selectedTask.timing.timeLogged.match(/(\d+)h\s*(\d+)m/);
+            if (timeMatch) {
+                existingHours = parseInt(timeMatch[1]) || 0;
+                existingMinutes = parseInt(timeMatch[2]) || 0;
+            }
+        }
+
+        // Add new elapsed time to existing time
+        const newSeconds = elapsedSeconds + (existingHours * 3600) + (existingMinutes * 60);
+        const totalHours = Math.floor(newSeconds / 3600);
+        const totalMinutes = Math.floor((newSeconds % 3600) / 60);
+        const timeLogged = `${totalHours}h ${totalMinutes}m`;
+        
+        // Update task in database with accumulated time
+        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${window.auth.getToken()}`
+            },
+            body: JSON.stringify({
+                userId: userId,
+                timing: {
+                    ...selectedTask.timing,
+                    timeLogged: timeLogged
+                }
+            })
+        });
+
+        if (!taskResponse.ok) {
+            throw new Error('Failed to update task time');
+        }
+
+        // Update daily time
         await updateDailyTime(
             selectedTask.taskId,
             elapsedSeconds,
@@ -278,21 +313,33 @@ async function stopTimer() {
             selectedTask.project.projectName
         );
         
+        // Update local task data
+        selectedTask.timing.timeLogged = timeLogged;
+        
+        // Update task in arrays and re-render
+        const taskIndex = allTasks.findIndex(t => t.taskId === selectedTask.taskId);
+        if (taskIndex !== -1) {
+            allTasks[taskIndex] = {...selectedTask};
+            const filteredIndex = filteredTasks.findIndex(t => t.taskId === selectedTask.taskId);
+            if (filteredIndex !== -1) {
+                filteredTasks[filteredIndex] = {...selectedTask};
+            }
+            renderTasks(filteredTasks.length ? filteredTasks : allTasks);
+        }
+        
         // Reset timer state
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
         isTracking = false;
         playButton.innerHTML = '<i class="fas fa-play"></i>';
         
-        // Refresh stats
         await loadUserStats();
-        
         displayNotification('Timer stopped successfully', 'success');
+        
     } catch (error) {
         console.error('Error stopping timer:', error);
         displayNotification('Failed to stop timer: ' + error.message, 'error');
         
-        // Reset UI even if there's an error
         clearInterval(timerInterval);
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
@@ -355,7 +402,6 @@ async function handleTaskSubmit(e) {
             return;
         }
         
-        // Continue with the rest of the form submission code...
         const formData = new FormData(e.target);
         const userId = window.auth.getUserId();
         
@@ -372,6 +418,12 @@ async function handleTaskSubmit(e) {
         // Get project name from select element
         const projectSelect = document.getElementById('project');
         const selectedProjectName = projectSelect.options[projectSelect.selectedIndex]?.text || 'No Project';
+
+        // Get sprint and epic names from select elements
+        const sprintSelect = document.getElementById('sprint');
+        const epicSelect = document.getElementById('epic');
+        const selectedSprintName = sprintSelect.options[sprintSelect.selectedIndex]?.text || '';
+        const selectedEpicName = epicSelect.options[epicSelect.selectedIndex]?.text || '';
 
         // Parse dates and ensure they're in ISO format
         const startDate = formData.get('startDate') ? new Date(formData.get('startDate')).toISOString() : null;
@@ -395,8 +447,10 @@ async function handleTaskSubmit(e) {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             metadata: {
-                sprint: formData.get('sprint') || null,
-                epic: formData.get('epic') || null,
+                sprint: sprintValue || null,
+                sprintName: selectedSprintName,
+                epic: epicValue || null,
+                epicName: selectedEpicName,
                 labels: [],
                 dependencies: [],
                 attachments: []
@@ -423,12 +477,8 @@ async function handleTaskSubmit(e) {
             }
         };
 
-        console.log('Sending task data:', taskData); // Debug log
+        console.log('Sending task data:', taskData);
 
-        // Get the button that triggered the submit
-        const submitButton = e.submitter;
-        const isSaveAndAdd = submitButton.value === 'saveAndAdd';
-        
         const response = await fetch('https://actracker.onrender.com/api/tasks/create', {
             method: 'POST',
             headers: {
@@ -444,25 +494,20 @@ async function handleTaskSubmit(e) {
             throw new Error(data.message || data.error || 'Failed to create task');
         }
         
-        // Show success notification
         displayNotification('Task created successfully!', 'success');
-        
-        // Refresh task list
         await loadTasks();
 
+        // Handle Save & Add Another
+        const submitButton = e.submitter;
+        const isSaveAndAdd = submitButton.value === 'saveAndAdd';
+        
         if (isSaveAndAdd) {
-            // Reset the form
             e.target.reset();
-            
-            // Restore values that should be kept
             if (projectValue) document.getElementById('project').value = projectValue;
             if (sprintValue) document.getElementById('sprint').value = sprintValue;
             if (epicValue) document.getElementById('epic').value = epicValue;
-            
-            // Focus on the task title field
             document.getElementById('task-title').focus();
         } else {
-            // Reset form and close modal
             e.target.reset();
             closeModal();
         }
@@ -748,100 +793,53 @@ function calculatePriority(dueDate) {
 
 function renderTasks(tasks) {
     const tableBody = document.querySelector('.table-body');
+    const emptyState = document.querySelector('.empty-state');
     
-    if (!tasks || tasks.length === 0) {
-        tableBody.innerHTML = `
-            <div class="empty-state">
-                <svg width="183" height="184" viewBox="0 0 183 184" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <g clip-path="url(#clip0_1340_22343)">
-                    <path d="M123.766 193.716C166.917 193.716 201.9 158.733 201.9 115.429C201.9 72.1238 166.763 37.1409 123.766 37.1409C80.6157 37.1409 45.6328 72.1238 45.6328 115.429C45.6328 158.733 80.6157 193.716 123.766 193.716Z" fill="#EAEEF9"/>
-                    <path d="M196.804 64.11C200.294 64.11 203.123 61.2811 203.123 57.7915C203.123 54.3019 200.294 51.473 196.804 51.473C193.315 51.473 190.486 54.3019 190.486 57.7915C190.486 61.2811 193.315 64.11 196.804 64.11Z" fill="#E7EBF6"/>
-                    <path d="M206.053 39.4525C208.436 39.4525 210.368 37.5206 210.368 35.1374C210.368 32.7543 208.436 30.8224 206.053 30.8224C203.669 30.8224 201.738 32.7543 201.738 35.1374C201.738 37.5206 203.669 39.4525 206.053 39.4525Z" fill="#E7EBF6"/>
-                    <path d="M49.7853 63.9556C52.1684 63.9556 54.1004 62.0237 54.1004 59.6406C54.1004 57.2574 52.1684 55.3255 49.7853 55.3255C47.4021 55.3255 45.4702 57.2574 45.4702 59.6406C45.4702 62.0237 47.4021 63.9556 49.7853 63.9556Z" fill="#E7EBF6"/>
-                    <path d="M23.4385 147.175C27.8643 147.175 31.4522 143.587 31.4522 139.161C31.4522 134.735 27.8643 131.148 23.4385 131.148C19.0127 131.148 15.4248 134.735 15.4248 139.161C15.4248 143.587 19.0127 147.175 23.4385 147.175Z" fill="#E7EBF6"/>
-                    <g filter="url(#filter0_d_1340_22343)">
-                    <path d="M146.417 73.8186L169.996 158.579C170.766 161.507 169.071 164.435 166.143 165.206L83.0781 187.243C80.1501 188.014 77.222 186.319 76.4514 183.391L47.4788 73.9727C46.7083 71.0447 48.4035 68.1166 51.3316 67.346L111.434 51.4727L146.417 73.8186Z" fill="url(#paint0_linear_1340_22343)"/>
-                    </g>
-                    <path d="M145.177 127.449L100.332 139.315L95.4 140.548L80.4514 144.555C79.835 144.709 79.3727 145.48 79.6809 146.25C79.835 147.021 80.6055 147.483 81.222 147.329L96.1706 143.322L101.102 142.089L145.948 130.223C146.564 130.069 147.027 129.298 146.719 128.528C146.564 127.757 145.794 127.295 145.177 127.449Z" fill="#D5DDEA"/>
-                    <path d="M142.26 116.969L125.616 121.284L119.914 122.826L77.8418 134.076C77.2254 134.23 76.763 135 77.0713 135.771C77.2254 136.541 77.9959 137.004 78.6123 136.85L120.838 125.6L126.54 124.058L143.184 119.743C143.801 119.589 144.263 118.819 143.955 118.048C143.647 117.432 142.876 116.815 142.26 116.969Z" fill="#D5DDEA"/>
-                    <path d="M139.787 106.336L135.472 107.415L131.157 108.493L74.907 123.442C74.2905 123.596 73.8282 124.367 74.1364 125.137C74.2905 125.908 75.0611 126.37 75.6775 126.216L131.928 111.267L136.705 110.034L140.558 108.956C141.174 108.802 141.636 108.031 141.328 107.26C141.174 106.644 140.558 106.182 139.787 106.336Z" fill="#D5DDEA"/>
-                    <path d="M113.741 160.891L110.659 161.661C110.042 161.816 109.272 161.353 109.118 160.583C108.964 159.812 109.272 159.042 109.888 158.887L112.97 158.117C113.587 157.963 114.357 158.425 114.511 159.196C114.666 160.12 114.357 160.737 113.741 160.891Z" fill="#CED7E2"/>
-                    <path d="M104.337 163.356L86.6145 167.98C85.9981 168.134 85.2276 167.672 85.0735 166.901C84.9193 166.13 85.2276 165.36 85.844 165.206L103.567 160.583C104.183 160.428 104.954 160.891 105.108 161.661C105.416 162.432 105.108 163.202 104.337 163.356Z" fill="#D5DDEA"/>
-                    <path d="M137.624 95.7026L123.6 99.4013L120.21 100.326L72.2817 112.963C71.6653 113.117 71.203 113.888 71.5112 114.658C71.6653 115.429 72.4358 115.891 73.0523 115.737L120.826 103.254L124.217 102.329L138.087 98.6307C138.857 98.4766 139.165 97.7061 139.011 96.7814C139.011 96.165 138.241 95.5485 137.624 95.7026Z" fill="#D5DDEA"/>
-                    <path d="M104.498 72.4315L64.738 82.9109C63.8133 83.2191 62.8886 82.6027 62.5804 81.678C62.2722 80.7534 62.8886 79.8287 63.8133 79.5205L103.574 69.041C104.498 68.7328 105.423 69.3493 105.731 70.2739C106.039 71.1986 105.423 72.1232 104.498 72.4315Z" fill="#D5DDEA"/>
-                    <path d="M82.6198 88.4594L67.363 92.4662C66.4383 92.7745 65.5136 92.158 65.2054 91.2334C64.8972 90.3087 65.5136 89.3841 66.4383 89.0758L81.541 85.069C82.4657 84.7608 83.3904 85.3772 83.6986 86.3019C84.0068 87.2265 83.3904 88.1512 82.6198 88.4594Z" fill="#D5DDEA"/>
-                    <path d="M111.425 51.4728L117.589 74.8974C118.514 78.1337 122.058 80.1372 125.295 79.2125L146.408 73.8187" fill="#D5DDEA"/>
-                    </g>
-                    <defs>
-                    <filter id="filter0_d_1340_22343" x="13.3891" y="34.5207" width="190.697" height="203.764" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-                    <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-                    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-                    <feOffset dy="16.9521"/>
-                    <feGaussianBlur stdDeviation="16.9521"/>
-                    <feColorMatrix type="matrix" values="0 0 0 0 0.397708 0 0 0 0 0.47749 0 0 0 0 0 0 0.575 0 0 0 0.27 0"/>
-                    <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1340_22343"/>
-                    <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1340_22343" result="shape"/>
-                    </filter>
-                    <linearGradient id="paint0_linear_1340_22343" x1="108.697" y1="48.328" x2="108.697" y2="188.895" gradientUnits="userSpaceOnUse">
-                    <stop stop-color="#FDFEFF"/>
-                    <stop offset="0.9964" stop-color="#ECF0F5"/>
-                    </linearGradient>
-                    <clipPath id="clip0_1340_22343">
-                    <rect width="225" height="225" fill="white"/>
-                    </clipPath>
-                    </defs>
-                </svg>
-                <p>Ready to get organized? Let's create your first task!</p>
-                <button class="add-task-btn" onclick="openModal()">
-                    <i class="fas fa-plus"></i>
-                    Add Task
-                </button>
-            </div>
-        `;
-        updatePagination(0);
+    // Ensure we have the required elements
+    if (!tableBody) {
+        console.error('Table body element not found');
         return;
     }
     
-    // Calculate pagination
-    const totalPages = Math.ceil(tasks.length / tasksPerPage);
+    if (!tasks || tasks.length === 0) {
+        tableBody.innerHTML = '';
+        if (emptyState) {
+            emptyState.style.display = 'flex';
+        }
+        return;
+    }
+    
+    if (emptyState) {
+        emptyState.style.display = 'none';
+    }
+    
+    // Calculate start and end indices for current page
     const startIndex = (currentPage - 1) * tasksPerPage;
     const endIndex = startIndex + tasksPerPage;
     const paginatedTasks = tasks.slice(startIndex, endIndex);
     
-    tableBody.innerHTML = '';
-    
-    paginatedTasks.forEach(task => {
-        const row = document.createElement('div');
-        row.className = 'task-row';
-        
-        const statusClass = getStatusClass(task.status);
-        const formattedDate = task.timing?.dueDate ? formatDate(task.timing.dueDate) : 'No date';
-        const priority = calculatePriority(task.timing?.dueDate);
-        
-        row.innerHTML = `
-            <div class="cell task-name">
-                <span class="task-title">${task.title || 'Untitled Task'}</span>
-            </div>
-            <div class="cell project">
-                <span class="project-name">${task.project?.projectName || 'No Project'}</span>
-            </div>
-            <div class="cell deadline">
-                ${formattedDate}
-            </div>
-            <div class="cell priority">
-                <span class="priority-badge priority-${priority.toLowerCase()}">${priority}</span>
-            </div>
-            <div class="cell time-logged">
-                ${task.timing?.timeLogged || '0 Hours'}
-            </div>
-            <div class="cell status">
-                <span class="status-badge ${statusClass}">${task.status}</span>
+    tableBody.innerHTML = paginatedTasks.map(task => {
+        // Format time logged
+        let timeLogged = '0h 0m';
+        if (task.timing && task.timing.timeLogged) {
+            timeLogged = task.timing.timeLogged;
+        }
+
+        return `
+            <div class="task-row" onclick="selectTask(${JSON.stringify(task).replace(/"/g, '&quot;')})">
+                <div class="task-title">${task.title || 'Untitled Task'}</div>
+                <div class="project-name">${task.project?.projectName || 'No Project'}</div>
+                <div class="deadline">${formatDate(task.timing?.dueDate)}</div>
+                <div class="priority">
+                    <span class="priority-badge priority-${task.priority?.toLowerCase()}">${task.priority || 'Low'}</span>
+                </div>
+                <div class="time-logged">${timeLogged}</div>
+                <div class="status">
+                    <span class="status-badge ${getStatusClass(task.status)}">${task.status || 'Not Started'}</span>
+                </div>
             </div>
         `;
-        
-        row.addEventListener('click', () => selectTask(task));
-        tableBody.appendChild(row);
-    });
+    }).join('');
     
     updatePagination(tasks.length);
 }
@@ -890,7 +888,7 @@ function selectTask(task) {
                     <defs>
                     <filter id="filter0_d_1340_22096" x="14.064" y="11.8949" width="132.229" height="131.119" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
                     <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-                    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+                    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
                     <feOffset dy="11"/>
                     <feGaussianBlur stdDeviation="11"/>
                     <feColorMatrix type="matrix" values="0 0 0 0 0.397708 0 0 0 0 0.47749 0 0 0 0 0.575 0 0 0 0.27 0"/>
@@ -1297,7 +1295,7 @@ function updatePagination(totalTasks) {
     }
     
     // Generate pagination HTML
-    pagination.innerHTML = `
+    const paginationHTML = `
         <button class="first-page" ${currentPage === 1 ? 'disabled' : ''} title="First Page">
             <i class="fas fa-angle-double-left"></i>
         </button>
@@ -1307,9 +1305,9 @@ function updatePagination(totalTasks) {
         <div class="page-numbers">
             ${pageNumbers.map(num => {
                 if (num === '...') {
-                    return '<span>...</span>';
+                    return '<span class="ellipsis">...</span>';
                 }
-                return `<button ${num === currentPage ? 'class="active"' : ''}>${num}</button>`;
+                return `<button class="page-number ${num === currentPage ? 'active' : ''}" data-page="${num}">${num}</button>`;
             }).join('')}
         </div>
         <button class="next-page" ${currentPage === totalPages ? 'disabled' : ''} title="Next Page">
@@ -1320,46 +1318,42 @@ function updatePagination(totalTasks) {
         </button>
     `;
     
-    // Add event listeners to pagination buttons
-    pagination.querySelector('.first-page').addEventListener('click', () => {
-        if (currentPage !== 1) {
-            currentPage = 1;
-            renderTasks(filteredTasks);
-        }
-    });
+    // Remove old event listener if it exists
+    const oldPagination = pagination.cloneNode(true);
+    pagination.parentNode.replaceChild(oldPagination, pagination);
     
-    pagination.querySelector('.prev-page').addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderTasks(filteredTasks);
-        }
-    });
+    // Set the new HTML
+    oldPagination.innerHTML = paginationHTML;
     
-    pagination.querySelector('.next-page').addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderTasks(filteredTasks);
-        }
-    });
-    
-    pagination.querySelector('.last-page').addEventListener('click', () => {
-        if (currentPage !== totalPages) {
-            currentPage = totalPages;
-            renderTasks(filteredTasks);
-        }
-    });
-    
-    // Add event listeners to page number buttons
-    pagination.querySelectorAll('.page-numbers button').forEach(button => {
-        button.addEventListener('click', () => {
-            const newPage = parseInt(button.textContent);
-            if (newPage !== currentPage) {
-                currentPage = newPage;
-                renderTasks(filteredTasks);
-            }
-        });
-    });
-} 
+    // Add the new event listener
+    oldPagination.addEventListener('click', handlePaginationClick);
+}
+
+// Separate function to handle pagination clicks
+function handlePaginationClick(e) {
+    const target = e.target.closest('button');
+    if (!target || target.disabled) return;
+
+    const totalPages = Math.ceil((filteredTasks.length || allTasks.length) / tasksPerPage);
+    let newPage = currentPage;
+
+    if (target.classList.contains('first-page')) {
+        newPage = 1;
+    } else if (target.classList.contains('prev-page')) {
+        newPage = Math.max(1, currentPage - 1);
+    } else if (target.classList.contains('next-page')) {
+        newPage = Math.min(totalPages, currentPage + 1);
+    } else if (target.classList.contains('last-page')) {
+        newPage = totalPages;
+    } else if (target.classList.contains('page-number')) {
+        newPage = parseInt(target.dataset.page);
+    }
+
+    if (newPage !== currentPage) {
+        currentPage = newPage;
+        renderTasks(filteredTasks.length ? filteredTasks : allTasks);
+    }
+}
 
 // Function to update daily time
 async function updateDailyTime(taskId, seconds, title, projectName) {
@@ -1373,6 +1367,7 @@ async function updateDailyTime(taskId, seconds, title, projectName) {
 
         const today = new Date().toISOString().split('T')[0];
 
+        // First update the daily time
         const response = await fetch('https://actracker.onrender.com/api/daily-time/update', {
             method: 'POST',
             headers: {
@@ -1394,10 +1389,62 @@ async function updateDailyTime(taskId, seconds, title, projectName) {
             throw new Error(errorData.error || 'Failed to update daily time');
         }
 
+        // Then update the task's time logged if we have a taskId
+        if (taskId) {
+            try {
+                // Calculate time logged
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const timeLogged = `${hours}h ${minutes}m`;
+
+                const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        timing: {
+                            timeLogged: timeLogged
+                        }
+                    })
+                });
+
+                if (!taskResponse.ok) {
+                    throw new Error('Failed to update task time logged');
+                }
+
+                // Update local task data if it exists
+                const taskIndex = allTasks.findIndex(t => t.taskId === taskId);
+                if (taskIndex !== -1) {
+                    allTasks[taskIndex].timing = {
+                        ...allTasks[taskIndex].timing,
+                        timeLogged: timeLogged
+                    };
+
+                    // Update filtered tasks if they exist
+                    const filteredIndex = filteredTasks.findIndex(t => t.taskId === taskId);
+                    if (filteredIndex !== -1) {
+                        filteredTasks[filteredIndex].timing = {
+                            ...filteredTasks[filteredIndex].timing,
+                            timeLogged: timeLogged
+                        };
+                    }
+
+                    // Only re-render if we have tasks to show
+                    if (allTasks.length > 0) {
+                        renderTasks(filteredTasks.length ? filteredTasks : allTasks);
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating task time:', error);
+                // Continue execution even if task update fails
+            }
+        }
+
         const data = await response.json();
         console.log('Daily time updated successfully:', data);
         
-        // Refresh the stats display
         await loadUserStats();
         
         return data;
