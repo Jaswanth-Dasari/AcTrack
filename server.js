@@ -1367,14 +1367,9 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             labels,
             dependencies,
             attachments,
-            startDate,
-            dueDate,
-            estimate,
-            worked,
-            isRecurring,
-            untilDate,
-            days,
-            assigneeUserId,
+            timing,
+            recurring,
+            assignee,
             project
         } = req.body;
 
@@ -1386,16 +1381,27 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             });
         }
 
-        // Parse dates properly ensuring timezone consistency
-        const parsedStartDate = startDate ? new Date(startDate) : null;
-        const parsedDueDate = dueDate ? new Date(dueDate) : null;
-        const parsedUntilDate = untilDate ? new Date(untilDate) : null;
+        // Parse dates from timing object
+        const parsedTiming = {
+            startDate: timing?.startDate ? new Date(timing.startDate) : null,
+            dueDate: timing?.dueDate ? new Date(timing.dueDate) : null,
+            estimate: timing?.estimate ? Number(timing.estimate) : 0,
+            worked: timing?.worked ? Number(timing.worked) : 0,
+            timeLogged: timing?.timeLogged || '0 Hours'
+        };
+
+        // Parse recurring dates and ensure days array
+        const parsedRecurring = {
+            isRecurring: Boolean(recurring?.isRecurring),
+            untilDate: recurring?.untilDate ? new Date(recurring.untilDate) : null,
+            days: Array.isArray(recurring?.days) ? recurring.days : []
+        };
 
         // Calculate priority based on due date if not provided
         let calculatedPriority = priority;
-        if (parsedDueDate && !priority) {
+        if (parsedTiming.dueDate && !priority) {
             const today = new Date();
-            const daysUntilDue = Math.ceil((parsedDueDate - today) / (1000 * 60 * 60 * 24));
+            const daysUntilDue = Math.ceil((parsedTiming.dueDate - today) / (1000 * 60 * 60 * 24));
             
             if (daysUntilDue <= 3) {
                 calculatedPriority = 'High';
@@ -1411,11 +1417,11 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         const finalProjectId = projectDetails.projectId || projectId;
         const finalProjectName = projectDetails.projectName || 'No Project';
 
-        console.log('Creating task with project details:', {
+        console.log('Creating task with details:', {
             projectId: finalProjectId,
             projectName: finalProjectName,
-            startDate: parsedStartDate,
-            dueDate: parsedDueDate
+            timing: parsedTiming,
+            recurring: parsedRecurring
         });
 
         const task = new Task({
@@ -1433,21 +1439,11 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
                 dependencies: dependencies || [],
                 attachments: attachments || []
             },
-            timing: {
-                startDate: parsedStartDate,
-                dueDate: parsedDueDate,
-                estimate: Number(estimate) || 0,
-                worked: Number(worked) || 0,
-                timeLogged: '0 Hours'
-            },
-            recurring: {
-                isRecurring: Boolean(isRecurring),
-                untilDate: parsedUntilDate,
-                days: Array.isArray(days) ? days : []
-            },
-            assignee: assigneeUserId ? {
-                userId: assigneeUserId,
-                assignedAt: new Date()
+            timing: parsedTiming,
+            recurring: parsedRecurring,
+            assignee: assignee ? {
+                userId: assignee.userId,
+                assignedAt: new Date(assignee.assignedAt)
             } : null,
             project: {
                 projectId: finalProjectId,
@@ -1463,6 +1459,7 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 
 // Update the daily time endpoint

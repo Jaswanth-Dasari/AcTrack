@@ -323,6 +323,15 @@ async function handleTaskSubmit(e) {
         // Get project name from select element
         const projectSelect = document.getElementById('project');
         const selectedProjectName = projectSelect.options[projectSelect.selectedIndex]?.text || 'No Project';
+
+        // Parse dates and ensure they're in ISO format
+        const startDate = formData.get('startDate') ? new Date(formData.get('startDate')).toISOString() : null;
+        const dueDate = formData.get('dueDate') ? new Date(formData.get('dueDate')).toISOString() : null;
+        const untilDate = formData.get('until-date') ? new Date(formData.get('until-date')).toISOString() : null;
+
+        // Parse numeric values
+        const estimate = formData.get('estimate') ? Number(formData.get('estimate')) : 0;
+        const worked = formData.get('worked') ? Number(formData.get('worked')) : 0;
         
         // Create task schema
         const taskData = {
@@ -343,16 +352,16 @@ async function handleTaskSubmit(e) {
                 attachments: []
             },
             timing: {
-                startDate: formData.get('startDate') || null,
-                dueDate: formData.get('dueDate') || null,
-                estimate: formData.get('estimate') || null,
-                worked: formData.get('worked') || null,
+                startDate: startDate,
+                dueDate: dueDate,
+                estimate: estimate,
+                worked: worked,
                 timeLogged: '0 Hours'
             },
             recurring: {
                 isRecurring: formData.get('recurring') === 'on',
-                untilDate: formData.get('until-date') || null,
-                days: selectedDays.length > 0 ? selectedDays : null
+                untilDate: untilDate,
+                days: selectedDays
             },
             assignee: {
                 userId: formData.get('assignee') || userId,
@@ -363,6 +372,8 @@ async function handleTaskSubmit(e) {
                 projectName: selectedProjectName
             }
         };
+
+        console.log('Sending task data:', taskData); // Debug log
 
         // Get the button that triggered the submit
         const submitButton = e.submitter;
@@ -410,6 +421,8 @@ async function handleTaskSubmit(e) {
         displayNotification(error.message || 'Failed to create task. Please try again.', 'error');
     }
 }
+
+
 function createNotificationContainer() {
     let container = document.querySelector('.notification-container');
     if (!container) {
