@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
     setupEventListeners();
     setupSearch();
+    setupRecurringTaskFields();
     startTotalHoursUpdate();
 });
 
@@ -108,7 +109,6 @@ function startTotalHoursUpdate() {
     totalHoursInterval = setInterval(updateTotalHoursToday, 60000);
 }
 
-
 // Clean up interval on page unload
 window.addEventListener('beforeunload', () => {
     if (totalHoursInterval) {
@@ -133,6 +133,9 @@ function setupEventListeners() {
 
     // Project selection
     projectSelect.addEventListener('change', handleProjectChange);
+
+    // Recurring task fields
+    setupRecurringTaskFields();
 }
 
 // Project Functions
@@ -317,13 +320,49 @@ async function handleTaskSubmit(e) {
     
     try {
         clearMessages();
-    
+        
+        // Basic validation
+        const requiredFields = ['task-title', 'project', 'startDate', 'dueDate', 'task-status'];
+        let hasErrors = false;
+        
+        requiredFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+                highlightField(fieldId);
+                hasErrors = true;
+            }
+        });
+        
+        // Validate recurring task fields if enabled
+        const isRecurring = document.getElementById('recurring-toggle').checked;
+        if (isRecurring) {
+            const untilDate = document.getElementById('until-date').value;
+            const selectedDays = document.querySelectorAll('input[name="days"]:checked');
+            
+            if (!untilDate) {
+                highlightField('until-date');
+                hasErrors = true;
+            }
+            
+            if (selectedDays.length === 0) {
+                displayNotification('Please select at least one day for recurring task', 'error');
+                hasErrors = true;
+            }
+        }
+        
+        if (hasErrors) {
+            displayNotification('Please fill in all required fields', 'error');
+            return;
+        }
+        
+        // Continue with the rest of the form submission code...
         const formData = new FormData(e.target);
         const userId = window.auth.getUserId();
         
-        // Get selected days
-        const selectedDays = Array.from(document.querySelectorAll('input[name="days"]:checked'))
-            .map(checkbox => checkbox.value);
+        // Get selected days only if recurring is enabled
+        const selectedDays = isRecurring ? 
+            Array.from(document.querySelectorAll('input[name="days"]:checked'))
+                .map(checkbox => checkbox.value) : [];
         
         // Store values that should be kept for Save & Add Another
         const projectValue = formData.get('project');
@@ -337,7 +376,8 @@ async function handleTaskSubmit(e) {
         // Parse dates and ensure they're in ISO format
         const startDate = formData.get('startDate') ? new Date(formData.get('startDate')).toISOString() : null;
         const dueDate = formData.get('dueDate') ? new Date(formData.get('dueDate')).toISOString() : null;
-        const untilDate = formData.get('until-date') ? new Date(formData.get('until-date')).toISOString() : null;
+        const untilDate = isRecurring && formData.get('until-date') ? 
+            new Date(formData.get('until-date')).toISOString() : null;
 
         // Parse numeric values
         const estimate = formData.get('estimate') ? Number(formData.get('estimate')) : 0;
@@ -369,7 +409,7 @@ async function handleTaskSubmit(e) {
                 timeLogged: '0 Hours'
             },
             recurring: {
-                isRecurring: formData.get('recurring') === 'on',
+                isRecurring: isRecurring,
                 untilDate: untilDate,
                 days: selectedDays
             },
@@ -431,7 +471,6 @@ async function handleTaskSubmit(e) {
         displayNotification(error.message || 'Failed to create task. Please try again.', 'error');
     }
 }
-
 
 function createNotificationContainer() {
     let container = document.querySelector('.notification-container');
@@ -973,11 +1012,8 @@ async function completeTask() {
             selectedTask.project.projectName
         );
         
-        // Calculate new worked hours
-        const newWorkedHours = ((selectedTask.timing?.worked || 0) + (elapsedSeconds / 3600)).toFixed(2);
-        
         // Update task status to completed
-        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {  // Ensure this matches the server's endpoint
+        const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -986,11 +1022,11 @@ async function completeTask() {
             body: JSON.stringify({
                 userId: userId,
                 status: 'Completed',
+                updatedAt: new Date().toISOString(),
                 timing: {
                     ...selectedTask.timing,
-                    worked: newWorkedHours
-                },
-                updatedAt: new Date().toISOString()
+                    worked: ((selectedTask.timing?.worked || 0) + (elapsedSeconds / 3600)).toFixed(2)
+                }
             })
         });
 
@@ -1001,6 +1037,7 @@ async function completeTask() {
                 const parsedError = JSON.parse(errorData);
                 errorMessage = parsedError.error || errorMessage;
             } catch (e) {
+                // If JSON parsing fails, use the raw error text if it's not HTML
                 if (!errorData.includes('<!DOCTYPE html>')) {
                     errorMessage = errorData;
                 }
@@ -1008,33 +1045,31 @@ async function completeTask() {
             throw new Error(errorMessage);
         }
 
-        const updatedTask = await taskResponse.json();
-
         // Reset timer state
         elapsedSeconds = 0;
         elapsedTime.textContent = '00:00:00';
         isTracking = false;
         playButton.innerHTML = '<i class="fas fa-play"></i>';
         
-        // Update the task status in the local arrays and UI immediately
-        selectedTask.status = 'Completed';
-        selectedTask.timing = {
-            ...selectedTask.timing,
-            worked: newWorkedHours
-        };
-        
+        // Update the task status in the local arrays
         const taskIndex = allTasks.findIndex(task => task.taskId === selectedTask.taskId);
         if (taskIndex !== -1) {
-            allTasks[taskIndex] = { ...allTasks[taskIndex], ...updatedTask };
+            allTasks[taskIndex].status = 'Completed';
             // Update filtered tasks if they exist
             const filteredIndex = filteredTasks.findIndex(task => task.taskId === selectedTask.taskId);
             if (filteredIndex !== -1) {
-                filteredTasks[filteredIndex] = { ...filteredTasks[filteredIndex], ...updatedTask };
+                filteredTasks[filteredIndex].status = 'Completed';
             }
         }
+
+        // Update the selected task status
+        selectedTask.status = 'Completed';
         
         // Re-render the tasks to show the updated status
         renderTasks(filteredTasks.length ? filteredTasks : allTasks);
+        
+        // Update the task info display
+        selectTask(selectedTask);
         
         // Show completion modal
         showCompletionModal();
@@ -1360,7 +1395,7 @@ async function updateDailyTime(taskId, seconds, title, projectName) {
         }
 
         const data = await response.json();
-        // console.log('Daily time updated successfully:', data);
+        console.log('Daily time updated successfully:', data);
         
         // Refresh the stats display
         await loadUserStats();
@@ -1372,3 +1407,35 @@ async function updateDailyTime(taskId, seconds, title, projectName) {
         throw error;
     }
 } 
+
+// Add this after setupEventListeners function
+function setupRecurringTaskFields() {
+    const recurringToggle = document.getElementById('recurring-toggle');
+    const recurringFields = document.querySelectorAll('.recurring-fields');
+    const dayCheckboxes = document.querySelectorAll('input[name="days"]');
+    const untilDateInput = document.getElementById('until-date');
+
+    if (recurringToggle) {
+        recurringToggle.addEventListener('change', (e) => {
+            const isRecurring = e.target.checked;
+            
+            // Show/hide recurring fields
+            recurringFields.forEach(field => {
+                field.style.display = isRecurring ? 'block' : 'none';
+            });
+            
+            // Enable/disable day checkboxes and until date
+            dayCheckboxes.forEach(checkbox => {
+                checkbox.disabled = !isRecurring;
+                if (!isRecurring) {
+                    checkbox.checked = false;
+                }
+            });
+            
+            untilDateInput.disabled = !isRecurring;
+            if (!isRecurring) {
+                untilDateInput.value = '';
+            }
+        });
+    }
+}
