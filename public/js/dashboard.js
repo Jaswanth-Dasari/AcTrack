@@ -327,7 +327,11 @@ async function stopTimer() {
         const totalMinutes = Math.floor((newSeconds % 3600) / 60);
         const timeLogged = `${totalHours}h ${totalMinutes}m`;
         
-        // Update task in database with accumulated time
+        // Calculate new worked hours (convert elapsed seconds to hours and add to existing)
+        const existingWorked = selectedTask.timing?.worked || 0;
+        const newWorkedHours = existingWorked + (elapsedSeconds / 3600);
+        
+        // Update task in database with accumulated time while preserving other timing fields
         const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
             method: 'PATCH',
             headers: {
@@ -337,7 +341,10 @@ async function stopTimer() {
             body: JSON.stringify({
                 userId: userId,
                 timing: {
-                    ...selectedTask.timing,
+                    startDate: selectedTask.timing?.startDate,
+                    dueDate: selectedTask.timing?.dueDate,
+                    estimate: selectedTask.timing?.estimate,
+                    worked: newWorkedHours,
                     timeLogged: timeLogged
                 }
             })
@@ -355,8 +362,12 @@ async function stopTimer() {
             selectedTask.project.projectName
         );
         
-        // Update local task data
-        selectedTask.timing.timeLogged = timeLogged;
+        // Update local task data while preserving all timing fields
+        selectedTask.timing = {
+            ...selectedTask.timing,
+            timeLogged: timeLogged,
+            worked: newWorkedHours
+        };
         
         // Update task in arrays and re-render
         const taskIndex = allTasks.findIndex(t => t.taskId === selectedTask.taskId);
