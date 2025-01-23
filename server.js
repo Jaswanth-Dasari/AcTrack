@@ -1411,9 +1411,9 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             days: Array.isArray(recurring?.days) ? recurring.days : []
         };
 
-        // Calculate priority based on due date if not provided
-        let calculatedPriority = priority;
-        if (parsedTiming.dueDate && !priority) {
+        // Calculate priority based on due date
+        let calculatedPriority;
+        if (parsedTiming.dueDate) {
             const today = new Date();
             const daysUntilDue = Math.ceil((parsedTiming.dueDate - today) / (1000 * 60 * 60 * 24));
             
@@ -1424,6 +1424,10 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             } else {
                 calculatedPriority = 'Low';
             }
+            console.log('Calculated priority based on due date:', { daysUntilDue, calculatedPriority });
+        } else {
+            calculatedPriority = priority || 'Medium';
+            console.log('Using provided priority or default:', calculatedPriority);
         }
 
         // Ensure project details are properly structured
@@ -1431,11 +1435,24 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         const finalProjectId = projectDetails.projectId || projectId;
         const finalProjectName = projectDetails.projectName || 'No Project';
 
+        // Parse metadata fields
+        const parsedMetadata = {
+            sprint: sprint || null,
+            sprintName: req.body.sprintName || null,
+            epic: epic || null,
+            epicName: req.body.epicName || null,
+            labels: Array.isArray(labels) ? labels : [],
+            dependencies: Array.isArray(dependencies) ? dependencies : [],
+            attachments: Array.isArray(attachments) ? attachments : []
+        };
+
         console.log('Creating task with details:', {
             projectId: finalProjectId,
             projectName: finalProjectName,
             timing: parsedTiming,
-            recurring: parsedRecurring
+            recurring: parsedRecurring,
+            priority: calculatedPriority,
+            metadata: parsedMetadata
         });
 
         const task = new Task({
@@ -1445,14 +1462,8 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
             title,
             description,
             status,
-            priority: calculatedPriority || 'Medium',
-            metadata: {
-                sprint,
-                epic,
-                labels: labels || [],
-                dependencies: dependencies || [],
-                attachments: attachments || []
-            },
+            priority: calculatedPriority,
+            metadata: parsedMetadata,
             timing: parsedTiming,
             recurring: parsedRecurring,
             assignee: assignee ? {
@@ -1473,7 +1484,6 @@ app.post('/api/tasks/create', authenticateToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 
 
 // Update the daily time endpoint
