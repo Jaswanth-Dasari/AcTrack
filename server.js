@@ -1337,20 +1337,34 @@ app.get('/api/tasks/:userId', authenticateToken, async (req, res) => {
 
 app.patch('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     try {
+        // First get the existing task
+        const existingTask = await Task.findOne({ taskId: req.params.taskId });
+        if (!existingTask) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        // If there's a timing update, merge it with existing timing
+        if (req.body.timing) {
+            req.body.timing = {
+                ...existingTask.timing.toObject(),  // Convert to plain object
+                ...req.body.timing
+            };
+        }
+
+        // Update the task with merged data
         const task = await Task.findOneAndUpdate(
             { taskId: req.params.taskId },
             req.body,
             { new: true }
         );
-        if (!task) {
-            return res.status(404).json({ error: 'Task not found' });
-        }
+        
         res.json(task);
     } catch (error) {
         console.error('Error updating task:', error);
         res.status(500).json({ error: error.message });
     }
 });
+
 
 app.post('/api/tasks/create', authenticateToken, async (req, res) => {
     try {
