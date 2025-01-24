@@ -20,9 +20,6 @@ let allTasks = [];
 let filteredTasks = [];
 let currentPage = 1;
 const tasksPerPage = 10;
-let isTimerRunning = false;
-let timerStartTime = 0;
-let lastUpdateTime = 0;
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -55,10 +52,10 @@ function initializeDashboard() {
 async function updateTotalHoursToday() {
     try {
         const userId = window.auth.getUserId();
-        if (!userId) {
-            throw new Error('User ID not found');
-        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
+        // Fetch today's daily time entry
         const response = await fetch(`${config.API_BASE_URL}/api/daily-time/${userId}`, {
             headers: {
                 'Authorization': `Bearer ${window.auth.getToken()}`
@@ -73,9 +70,8 @@ async function updateTotalHoursToday() {
         let totalSecondsToday = dailyTime.totalSeconds || 0;
 
         // Add current tracking session if active
-        if (isTracking && timerStartTime) {
-            const currentElapsed = Math.floor((Date.now() - timerStartTime) / 1000);
-            totalSecondsToday += currentElapsed;
+        if (isTracking) {
+            totalSecondsToday += elapsedSeconds;
         }
 
         // Convert total seconds to HH:MM:SS format
@@ -84,10 +80,23 @@ async function updateTotalHoursToday() {
         const seconds = totalSecondsToday % 60;
 
         // Update the display
+        const timerDisplay = document.querySelector('.timer-display');
         timerDisplay.textContent = formatTime(hours, minutes, seconds);
+
+        // Check if we need to reset at midnight
+        const now = new Date();
+        const timeUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now;
+        
+        // Set timeout to reset at midnight
+        setTimeout(() => {
+            timerDisplay.textContent = '00:00:00';
+            // Recursively call to start the next day
+            updateTotalHoursToday();
+        }, timeUntilMidnight);
 
     } catch (error) {
         console.error('Error updating total hours today:', error);
+        const timerDisplay = document.querySelector('.timer-display');
         timerDisplay.textContent = '00:00:00';
     }
 }
@@ -242,37 +251,14 @@ async function startTimer() {
     }
 
     try {
-        const userId = window.auth.getUserId();
-        if (!userId) {
-            throw new Error('User ID not found');
-        }
-
-        // Set timer start time and last update time
-        timerStartTime = Date.now();
-        lastUpdateTime = timerStartTime;
         isTracking = true;
-        
-        // Update UI
         playButton.innerHTML = '<i class="fas fa-stop"></i>';
         
-        // Ensure we have all required fields from the selected task
-        if (!selectedTask.project?.projectId || !selectedTask.taskId) {
-            throw new Error('Missing required task information');
-        }
-
-        // Start activity tracking with task information
-        const trackingResult = await window.electronAPI.startTrackingBrowserActivity(
-            userId,
-            selectedTask.project.projectId,
-            selectedTask.taskId, // Ensure taskId is passed
-            selectedTask.title
-        );
-
-        if (trackingResult && trackingResult.error) {
-            throw new Error(trackingResult.error);
-        }
-
-        // Update task status if needed
+        // Start electron tracking
+        const userId = window.auth.getUserId();
+        const projectId = selectedTask.project.projectId;
+        
+        // Update task status to "In Progress" if it's "Not Started"
         if (selectedTask.status === 'Not Started') {
             const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
                 method: 'PATCH',
@@ -286,27 +272,24 @@ async function startTimer() {
             });
 
             if (taskResponse.ok) {
+                // Update local task data
                 selectedTask.status = 'In Progress';
+                
+                // Update task in arrays and re-render
                 const taskIndex = allTasks.findIndex(t => t.taskId === selectedTask.taskId);
                 if (taskIndex !== -1) {
-                    allTasks[taskIndex].status = 'In Progress';
+                    allTasks[taskIndex] = {...selectedTask};
                     const filteredIndex = filteredTasks.findIndex(t => t.taskId === selectedTask.taskId);
                     if (filteredIndex !== -1) {
-                        filteredTasks[filteredIndex].status = 'In Progress';
+                        filteredTasks[filteredIndex] = {...selectedTask};
                     }
                     renderTasks(filteredTasks.length ? filteredTasks : allTasks);
                 }
             }
         }
-
-        // Start timer update
-        timerInterval = setInterval(updateTimer, 1000);
         
-        // Setup activity tracking
-        document.addEventListener('mousemove', handleMouseActivity);
-        document.addEventListener('click', handleMouseActivity);
-        document.addEventListener('wheel', handleMouseActivity);
-        document.addEventListener('keydown', handleKeyboardActivity);
+        window.electronAPI.startTrackingBrowserActivity(userId, projectId);
+        timerInterval = setInterval(updateTimer, 1000);
         
     } catch (error) {
         console.error('Error starting timer:', error);
@@ -318,7 +301,7 @@ async function startTimer() {
 
 async function stopTimer() {
     if (!isTracking || !selectedTask) return;
-    
+
     try {
         const userId = window.auth.getUserId();
         const projectId = selectedTask.project.projectId;
@@ -344,11 +327,11 @@ async function stopTimer() {
         const totalMinutes = Math.floor((newSeconds % 3600) / 60);
         const timeLogged = `${totalHours}h ${totalMinutes}m`;
         
-        // Calculate new worked hours
+        // Calculate new worked hours (convert elapsed seconds to hours and add to existing)
         const existingWorked = selectedTask.timing?.worked || 0;
         const newWorkedHours = existingWorked + (elapsedSeconds / 3600);
         
-        // Update task in database
+        // Update task in database with accumulated time while preserving other timing fields
         const taskResponse = await fetch(`${config.API_BASE_URL}/api/tasks/${selectedTask.taskId}`, {
             method: 'PATCH',
             headers: {
@@ -379,7 +362,7 @@ async function stopTimer() {
             selectedTask.project.projectName
         );
         
-        // Update local task data
+        // Update local task data while preserving all timing fields
         selectedTask.timing = {
             ...selectedTask.timing,
             timeLogged: timeLogged,
@@ -403,12 +386,6 @@ async function stopTimer() {
         isTracking = false;
         playButton.innerHTML = '<i class="fas fa-play"></i>';
         
-        // Remove event listeners
-        document.removeEventListener('mousemove', handleMouseActivity);
-        document.removeEventListener('click', handleMouseActivity);
-        document.removeEventListener('wheel', handleMouseActivity);
-        document.removeEventListener('keydown', handleKeyboardActivity);
-        
         await loadUserStats();
         displayNotification('Timer stopped successfully', 'success');
         
@@ -425,19 +402,12 @@ async function stopTimer() {
 }
 
 function updateTimer() {
-    if (!isTracking || !timerStartTime) return;
-    
-    const now = Date.now();
-    elapsedSeconds = Math.floor((now - timerStartTime) / 1000);
-    
+    elapsedSeconds++;
     const hours = Math.floor(elapsedSeconds / 3600);
     const minutes = Math.floor((elapsedSeconds % 3600) / 60);
     const seconds = elapsedSeconds % 60;
     
     elapsedTime.textContent = formatTime(hours, minutes, seconds);
-    
-    // Update total hours today as well
-    updateTotalHoursToday();
 }
 
 function formatTime(hours, minutes, seconds) {
@@ -878,6 +848,7 @@ function renderTasks(tasks) {
     const tableBody = document.querySelector('.table-body');
     const emptyState = document.querySelector('.empty-state');
     
+    // Ensure we have the required elements
     if (!tableBody) {
         console.error('Table body element not found');
         return;
@@ -895,19 +866,20 @@ function renderTasks(tasks) {
         emptyState.style.display = 'none';
     }
     
+    // Calculate start and end indices for current page
     const startIndex = (currentPage - 1) * tasksPerPage;
     const endIndex = startIndex + tasksPerPage;
     const paginatedTasks = tasks.slice(startIndex, endIndex);
     
     tableBody.innerHTML = paginatedTasks.map(task => {
+        // Format time logged
         let timeLogged = '0h 0m';
         if (task.timing && task.timing.timeLogged) {
             timeLogged = task.timing.timeLogged;
         }
 
-        const isSelected = selectedTask && selectedTask.taskId === task.taskId;
         return `
-            <div class="task-row ${isSelected ? 'selected' : ''}" data-task-id="${task.taskId}" onclick="selectTask(${JSON.stringify(task).replace(/"/g, '&quot;')})">
+            <div class="task-row" onclick="selectTask(${JSON.stringify(task).replace(/"/g, '&quot;')})">
                 <div class="task-title">${task.title || 'Untitled Task'}</div>
                 <div class="project-name">${task.project?.projectName || 'No Project'}</div>
                 <div class="deadline">${formatDate(task.timing?.dueDate)}</div>
@@ -942,7 +914,45 @@ function selectTask(task) {
         projectInfo.innerHTML = `
             <div class="no-task-container">
                 <svg width="173" height="144" viewBox="0 0 173 144" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <!-- SVG path data -->
+                    <path d="M120.9 79C123.164 79 125 77.1644 125 74.9C125 72.6356 123.164 70.8 120.9 70.8C118.635 70.8 116.8 72.6356 116.8 74.9C116.8 77.1644 118.635 79 120.9 79Z" fill="#EAEEF9"/>
+                    <path d="M113.027 90.4392C114.573 90.4392 115.827 89.1856 115.827 87.6392C115.827 86.0928 114.573 84.8392C113.027 84.8392C111.48 84.8392C110.227 86.0928 110.227 87.6392C110.227 89.1856 111.48 90.4392 113.027 90.4392Z" fill="#EAEEF9"/>
+                    <path d="M22.3 22C23.8464 22 25.1 20.7464 25.1 19.2C25.1 17.6536 23.8464 16.4 22.3 16.4C20.7536 16.4 19.5 17.6536 19.5 19.2C19.5 20.7464 20.7536 22 22.3 22Z" fill="#EAEEF9"/>
+                    <path d="M5.2 76C8.07188 76 10.4 73.6719 10.4 70.8C10.4 67.9281 8.07188 65.6 5.2 65.6C2.32812 65.6 0 67.9281 0 70.8C0 73.6719 2.32812 76 5.2 76Z" fill="#EAEEF9"/>
+                    <path d="M68.3499 102.1C96.3499 102.1 119.05 79.4 119.05 51.3C119.05 23.2 96.3499 0.5 68.3499 0.5C40.3499 0.5 17.6499 23.2 17.6499 51.3C17.6499 79.4 40.3499 102.1 68.3499 102.1Z" fill="#EAEEF9"/>
+                    <path d="M124.733 15.9021C126.636 15.9021 128.247 17.3589 128.247 19.3985V122.543C128.247 124.437 126.783 126.039 124.733 126.039H48.4556C46.5524 126.039 44.9419 124.583 44.9419 122.543V19.3985C44.9419 17.5046 46.4059 15.9021 48.4556 15.9021H124.733Z" fill="#CED7E2"/>
+                    <path d="M128.247 26.6827V122.397C128.247 124.291 126.783 125.894 124.733 125.894H55.044L48.895 119.775L118.145 24.9345L124.147 22.7492L128.247 26.6827Z" fill="#BCC4CF"/>
+                    <path d="M124.44 23.9147C124.44 23.332 124.001 22.7492 123.269 22.7492H50.0663C49.4806 22.7492 48.895 23.1863 48.895 23.9147V118.609C48.895 119.192 49.3342 119.775 50.0663 119.775H123.123C123.708 119.775 124.294 119.338 124.294 118.609L124.44 23.9147Z" fill="#D9DFEE"/>
+                    <path d="M124.44 23.9147C124.44 23.332 124.001 22.7492 123.269 22.7492H50.0661C49.4805 22.7492 48.8949 23.1863 48.8949 23.9147C49.7733 61.6469 50.0661 104.332 45.9668 115.404L116.095 114.385C120.341 95.1543 123.562 60.6271 124.44 23.9147Z" fill="#EFF3FB"/>
+                    <g filter="url(#filter0_d_1340_22096)">
+                    <path d="M124.293 22.8949C124.293 22.8949 124.147 28.5766 122.39 64.852C122.39 65.1433 122.39 65.289 122.39 65.5804C120.194 101.127 88.5703 108.557 84.7638 108.994C83.0069 109.14 79.6396 109.431 73.637 109.431C66.1703 109.723 54.7507 109.868 36.8892 110.014C36.3036 110.014 35.8644 109.431 36.1572 108.849C48.4552 84.228 48.6016 23.0406 48.6016 23.0406L124.293 22.8949Z" fill="white"/>
+                    </g>
+                    <path d="M122.244 65.4347C120.194 100.982 88.4241 108.412 84.6175 108.849C82.8607 108.994 79.4933 109.286 73.4907 109.286C89.3025 102.001 97.794 88.8899 97.6476 78.692C105.261 79.2747 118.437 78.692 122.244 65.4347Z" fill="#EAEEF9"/>
+                    <path d="M104.382 16.1934C104.382 16.0477 104.382 16.0477 104.382 16.1934L103.65 15.465C103.65 15.465 103.211 15.6107 103.065 15.9021H91.6451C91.6451 15.6107 91.6451 15.465 91.6451 15.1736C91.6451 12.8427 89.5954 10.8031 87.2529 10.8031C84.9104 10.8031 82.8607 12.8427 82.8607 15.1736C82.8607 15.465 82.8607 15.6107 83.0071 15.7564H71.1483C70.5627 15.7564 69.9771 16.1934 69.9771 17.0675V20.8553C69.9771 23.769 72.0267 25.5172 74.8084 25.5172H99.1117C102.04 25.5172 104.529 23.769 104.529 20.8553V16.9219C104.675 16.6305 104.529 16.3391 104.382 16.1934Z" fill="#1C3754"/>
+                    <path d="M103.943 16.1934V19.9812C103.943 20.2726 103.943 20.4183 103.943 20.7097C103.504 23.1863 101.454 25.2259 98.819 25.2259H74.3693C71.734 25.2259 69.6843 23.1863 69.2451 20.7097C69.2451 20.4183 69.2451 20.2726 69.2451 19.9812V16.1934C69.2451 15.6107 69.6843 14.8823 70.4164 14.8823H82.4216C82.4216 14.5909 82.4216 14.4452 82.4216 14.2995C82.4216 11.9686 84.4713 9.92902 86.8138 9.92902C89.1563 9.92902 91.2059 11.9686 91.2059 14.2995C91.2059 14.5909 91.2059 14.7366 91.2059 14.8823H103.211C103.504 15.028 103.943 15.465 103.943 16.1934Z" fill="url(#paint0_linear_1340_22096)"/>
+                    <path d="M86.5209 16.3391C87.6921 16.3391 88.5705 15.465 88.5705 14.2995C88.5705 13.1341 87.6921 12.26 86.5209 12.26C85.3496 12.26 84.4712 13.1341 84.4712 14.2995C84.4712 15.465 85.496 16.3391 86.5209 16.3391Z" fill="#EAEEF9"/>
+                    <path d="M103.797 20.7097C103.358 23.1863 101.308 25.2259 98.6726 25.2259H74.3693C71.734 25.2259 69.6843 23.1863 69.2451 20.7097H103.797Z" fill="#9AA1B2"/>
+                    <path d="M66.9027 64.9977C69.2452 64.9977 71.002 63.1038 71.002 60.9185C71.002 58.5875 69.0988 56.8393 66.9027 56.8393C64.5602 56.8393 62.8033 58.7332 62.8033 60.9185C62.6569 63.1038 64.5602 64.9977 66.9027 64.9977Z" fill="#989FB0"/>
+                    <path d="M99.4045 64.852C101.747 64.852 103.504 62.9581 103.504 60.7728C103.504 58.4419 101.601 56.6937 99.4045 56.6937C97.2084 56.6937 95.3052 58.5876 95.3052 60.7728C95.3052 62.9581 97.062 64.852 99.4045 64.852Z" fill="#989FB0"/>
+                    <path d="M87.1066 69.3682H79.2007V71.2621H87.1066V69.3682Z" fill="#989FB0"/>
+                    <path d="M166.019 23.332C169.24 38.4831 168.801 54.5084 164.409 69.3682C163.384 72.4276 162.359 75.7783 160.163 78.1093C157.088 81.7514 151.525 83.3539 146.986 82.1884C142.301 81.0229 138.495 76.9438 137.616 71.9905C136.884 68.9311 137.909 65.289 140.544 63.3951C143.326 61.6469 147.279 62.084 149.622 64.2692C152.257 66.4545 153.282 69.8052 153.135 73.0103C152.989 76.2154 151.818 79.4204 150.207 82.1884C145.376 91.2208 136.592 98.3594 126.49 101.564C119.023 103.895 110.971 103.895 103.504 101.856" stroke="#C9D4E2" stroke-width="2" stroke-miterlimit="10" stroke-dasharray="4 4"/>
+                    <path d="M172.168 18.9614C171.729 20.564 169.972 21.1467 168.215 20.1269C166.312 19.2528 164.995 18.5244 165.287 17.0675C165.727 15.6107 167.483 15.465 169.533 15.3193C172.022 15.028 172.461 17.3589 172.168 18.9614Z" fill="#DAE2EB"/>
+                    <path d="M157.967 20.4183C158.699 21.7294 160.749 22.6035 162.213 21.2924C163.823 19.8355 165.141 18.8158 164.409 17.3589C163.677 16.0478 162.506 16.4848 160.017 16.7762C157.967 17.2132 157.089 18.9614 157.967 20.4183Z" fill="#DAE2EB"/>
+                    <path d="M164.409 15.028C165.434 14.8823 166.458 15.465 166.751 16.3391C166.898 16.6305 167.044 17.0675 167.044 17.3589C167.337 19.3985 166.605 21.1467 165.434 21.2924C164.116 21.5838 162.798 20.1269 162.652 18.233C162.652 17.6503 162.652 17.3589 162.652 16.9219C162.798 15.9021 163.384 15.1736 164.409 15.028C164.555 15.028 164.409 15.028 164.409 15.028Z" fill="#989FB0"/>
+                    <defs>
+                    <filter id="filter0_d_1340_22096" x="14.064" y="11.8949" width="132.229" height="131.119" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                    <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+                    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+                    <feOffset dy="11"/>
+                    <feGaussianBlur stdDeviation="11"/>
+                    <feColorMatrix type="matrix" values="0 0 0 0 0.397708 0 0 0 0 0.47749 0 0 0 0 0.575 0 0 0 0.27 0"/>
+                    <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1340_22096"/>
+                    <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1340_22096" result="shape"/>
+                    </filter>
+                    <linearGradient id="paint0_linear_1340_22096" x1="69.287" y1="17.5793" x2="103.977" y2="17.5793" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#B0BACC"/>
+                    <stop offset="1" stop-color="#969EAE"/>
+                    </linearGradient>
+                    </defs>
                 </svg>
                 <p class="no-task">No Task Selected!</p>
                 <p class="no-task-message">Please select task to start track ur time</p>
@@ -1527,30 +1537,5 @@ function setupRecurringTaskFields() {
                 untilDateInput.value = '';
             }
         });
-    }
-}
-
-// Add helper functions to get task information
-function getSelectedTask() {
-    const taskRow = document.querySelector('.task-row.selected');
-    if (!taskRow) return null;
-    
-    return {
-        taskId: taskRow.dataset.taskId,
-        title: taskRow.querySelector('.task-name').textContent,
-        projectName: taskRow.querySelector('.project-name').textContent
-    };
-}
-
-// Add mouse and keyboard activity handlers
-function handleMouseActivity() {
-    if (isTimerRunning) {
-        window.electronAPI.trackMouseActivity();
-    }
-}
-
-function handleKeyboardActivity() {
-    if (isTimerRunning) {
-        window.electronAPI.trackKeyboardActivity();
     }
 }
