@@ -62,12 +62,16 @@ const screenshotSchema = new mongoose.Schema({
     imagePath: String        // Path to the saved screenshot
 });
 
+// Browser Activities Schema
 const browserActivitiesSchema = new mongoose.Schema({
-    userId: String,
-    projectId: String,
+    userId: { type: String, required: true },
+    projectId: { type: String, required: true },
     title: String,
-    application:String,
-    timeSpentPercentage: Number, // Percentage of time spent on the URL during tracking
+    application: String,
+    timeSpentPercentage: Number,
+    tabTitle: String,  // Specific tab or file name
+    url: String,       // For browser tabs
+    path: String,      // For editor files
     date: { type: Date, default: Date.now }
 });
 
@@ -739,34 +743,44 @@ app.get('/api/activity-this-week/:userId', async (req, res) => {
     }
 });
 
-app.get('/api/browser-activities/:userId', async (req, res) => {
+// Get user's browser activities
+app.get('/api/users/:userId/browser-activities', authenticateToken, async (req, res) => {
     try {
-        const { userId } = req.params;
-        
-        if (!userId) {
-            return res.status(400).json({ error: 'User ID is required' });
-        }
+        const limit = parseInt(req.query.limit) || 50;
+        const userId = req.params.userId;
 
-        console.log('Server: Fetching activities for user:', userId);
+        console.log('Fetching browser activities for user:', userId);
 
-        // Ensure we're using the correct model and query
-        const activities = await browserActivities
-            .find({ 
-                userId: userId.toString().trim() // Clean and convert userId to string
-            })
-            .sort({ timestamp: -1 })
-            .limit(5);
+        const activities = await BrowserActivity
+            .find({ userId })
+            .sort({ date: -1 })
+            .limit(limit);
 
-        console.log(`Server: Found ${activities.length} activities for user:`, userId);
+        console.log('Found activities:', {
+            count: activities.length,
+            userId,
+            mostRecent: activities[0]?.date
+        });
 
-        // Always return a 200 status, even with empty results
-        res.status(200).json(activities || []);
-
+        res.json({ 
+            activities,
+            debug: {
+                totalFound: activities.length,
+                userId
+            }
+        });
     } catch (error) {
-        console.error('Server: Error fetching browser activities:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Error fetching browser activities:', error);
+        res.status(500).json({ 
+            error: error.message,
+            debug: {
+                userId: req.params.userId,
+                attempted: true
+            }
+        });
     }
 });
+
 
   
 //   app.get('/api/browser-activities', async (req, res) => {
@@ -1016,41 +1030,65 @@ app.get('/api/browser-activities', async (req, res) => {
     }
   });
 
-app.post('/api/browser-activities', async (req, res) => {
-    const activities = req.body.activities;
-    console.log('Received request:', JSON.stringify(req.body, null, 2));
-
-    // Validate that activities is an array
-    if (!Array.isArray(activities)) {
-        console.error('Error: activities is not an array');
-        return res.status(400).json({ error: 'Invalid data format: activities should be an array' });
-    }
-
+// Save browser activities
+app.post('/api/browser-activities', authenticateToken, async (req, res) => {
     try {
-        for (let activity of activities) {
-            const { userId, projectId, title, application, timeSpentPercentage } = activity;
+        const { userId, projectId, activities } = req.body;
 
-            if (!userId || !projectId || !title || !application || timeSpentPercentage == null) {
-                return res.status(400).json({ error: 'Missing required fields' });
-            }
+        // Log the received data
+        console.log('Saving browser activities:', {
+            userId,
+            projectId,
+            activityCount: activities?.length
+        });
 
-            // Create a new activity document
-            const activityDoc = new browserActivities({
-                userId,
-                projectId,
-                title,
-                application,
-                timeSpentPercentage,
+        // Validate required fields
+        if (!userId || !projectId || !Array.isArray(activities)) {
+            return res.status(400).json({
+                error: 'Invalid request data',
+                details: 'userId, projectId, and activities array are required'
             });
-
-            // Save the activity document in the database
-            await activityDoc.save();
         }
 
-        res.status(201).json({ message: 'Activities saved successfully' });
+        // Save all activities
+        const savedActivities = await Promise.all(
+            activities.map(activity => {
+                const browserActivity = new BrowserActivity({
+                    userId,
+                    projectId,
+                    title: activity.title,
+                    application: activity.application,
+                    timeSpentPercentage: activity.timeSpentPercentage,
+                    tabTitle: activity.tabTitle,
+                    url: activity.url,
+                    path: activity.path,
+                    date: activity.timestamp || new Date()
+                });
+                return browserActivity.save();
+            })
+        );
+
+        console.log('Successfully saved activities:', {
+            count: savedActivities.length,
+            userId,
+            projectId
+        });
+
+        res.status(201).json({
+            success: true,
+            savedCount: savedActivities.length,
+            activities: savedActivities
+        });
     } catch (error) {
-        console.error('Error saving activity:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Error saving browser activities:', error);
+        res.status(500).json({
+            error: error.message,
+            debug: {
+                userId: req.body.userId,
+                projectId: req.body.projectId,
+                attempted: true
+            }
+        });
     }
 });
 
