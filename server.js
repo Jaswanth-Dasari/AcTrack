@@ -1810,150 +1810,167 @@ app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) =>
         const limit = parseInt(req.query.limit) || 10;
         const userId = req.params.userId;
 
-        // Log the search parameters
-        console.log('Fetching screenshots for:', {
-            userId,
-            bucketName,
-            prefix: `screenshots/${userId}/`
-        });
+        // Try multiple possible path patterns
+        const possiblePrefixes = [
+            `screenshots/${userId}/`,
+            `screenshots/${userId}_`,
+            'screenshots/',
+            ''
+        ];
 
-        const params = {
-            Bucket: bucketName,
-            Prefix: `screenshots/${userId}/`
-        };
-
-        const data = await s3.listObjectsV2(params).promise();
+        let allScreenshots = [];
         
-        // Log the S3 response
-        console.log('S3 Response:', {
-            found: !!data.Contents,
-            totalItems: data.Contents ? data.Contents.length : 0,
-            keyPrefix: `screenshots/${userId}/`
-        });
-
-        if (!data.Contents || data.Contents.length === 0) {
-            // Try without user ID subfolder
-            const altParams = {
+        for (const prefix of possiblePrefixes) {
+            const params = {
                 Bucket: bucketName,
-                Prefix: 'screenshots/'
+                Prefix: prefix
             };
-            
-            const altData = await s3.listObjectsV2(altParams).promise();
-            
-            // Log alternative search results
-            console.log('Alternative S3 Search:', {
-                found: !!altData.Contents,
-                totalItems: altData.Contents ? altData.Contents.length : 0
-            });
 
-            // Filter for this user's screenshots if they exist
-            const userScreenshots = altData.Contents ? 
-                altData.Contents.filter(item => {
-                    // Check if the key contains the user ID in any format
-                    return item.Key.includes(userId);
-                }) : [];
-
-            if (userScreenshots.length > 0) {
-                const screenshots = userScreenshots
-                    .map(item => ({
+            console.log('Trying prefix:', prefix);
+            const data = await s3.listObjectsV2(params).promise();
+            
+            if (data.Contents && data.Contents.length > 0) {
+                const userScreenshots = data.Contents.filter(item => 
+                    item.Key.includes(userId) || 
+                    item.Key.includes(userId.toLowerCase()) ||
+                    item.Key.includes(userId.toUpperCase())
+                );
+                
+                if (userScreenshots.length > 0) {
+                    console.log(`Found ${userScreenshots.length} screenshots with prefix: ${prefix}`);
+                    allScreenshots = userScreenshots.map(item => ({
                         url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
                         timestamp: item.LastModified,
                         key: item.Key
-                    }))
-                    .sort((a, b) => b.timestamp - a.timestamp)
-                    .slice(0, limit);
-
-                return res.json({ 
-                    screenshots,
-                    debug: {
-                        searchPath: 'screenshots/',
-                        totalFound: userScreenshots.length,
-                        userIdMatch: userId
-                    }
-                });
-            }
-
-            return res.json({ 
-                screenshots: [],
-                debug: {
-                    searchPath: `screenshots/${userId}/`,
-                    altSearchPath: 'screenshots/',
-                    reason: 'No screenshots found for this user',
-                    userId: userId
+                    }));
+                    break;
                 }
-            });
+            }
         }
 
-        const screenshots = data.Contents
-            .map(item => ({
-                url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
-                timestamp: item.LastModified,
-                key: item.Key
-            }))
+        // Sort and limit the results
+        const screenshots = allScreenshots
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, limit);
 
         res.json({ 
             screenshots,
             debug: {
-                searchPath: `screenshots/${userId}/`,
-                totalFound: data.Contents.length,
-                returnedCount: screenshots.length
+                searchedPrefixes: possiblePrefixes,
+                foundTotal: allScreenshots.length,
+                returnedCount: screenshots.length,
+                userId: userId
             }
         });
     } catch (error) {
         console.error('Error fetching user screenshots:', error);
-        res.status(500).json({ 
-            error: error.message,
-            debug: {
-                userId: req.params.userId,
-                bucketName,
-                searchAttempted: true
-            }
-        });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Get user's screen recordings
+// Get user's screen recordings with enhanced debugging
 app.get('/api/users/:userId/recordings', authenticateToken, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 10;
-        const params = {
-            Bucket: bucketName,
-            Prefix: `recordings/${req.params.userId}/`
-        };
+        const userId = req.params.userId;
 
-        const data = await s3.listObjectsV2(params).promise();
-        if (!data.Contents || data.Contents.length === 0) {
-            return res.json({ recordings: [] });
+        // Try multiple possible path patterns
+        const possiblePrefixes = [
+            `recordings/${userId}/`,
+            `recordings/${userId}_`,
+            'recordings/',
+            ''
+        ];
+
+        let allRecordings = [];
+        
+        for (const prefix of possiblePrefixes) {
+            const params = {
+                Bucket: bucketName,
+                Prefix: prefix
+            };
+
+            console.log('Trying recordings prefix:', prefix);
+            const data = await s3.listObjectsV2(params).promise();
+            
+            if (data.Contents && data.Contents.length > 0) {
+                const userRecordings = data.Contents.filter(item => 
+                    item.Key.includes(userId) || 
+                    item.Key.includes(userId.toLowerCase()) ||
+                    item.Key.includes(userId.toUpperCase())
+                );
+                
+                if (userRecordings.length > 0) {
+                    console.log(`Found ${userRecordings.length} recordings with prefix: ${prefix}`);
+                    allRecordings = userRecordings.map(item => ({
+                        url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                        timestamp: item.LastModified,
+                        key: item.Key
+                    }));
+                    break;
+                }
+            }
         }
 
-        const recordings = data.Contents
-            .map(item => ({
-                url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
-                timestamp: item.LastModified,
-                key: item.Key
-            }))
+        const recordings = allRecordings
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, limit);
 
-        res.json({ recordings });
+        res.json({ 
+            recordings,
+            debug: {
+                searchedPrefixes: possiblePrefixes,
+                foundTotal: allRecordings.length,
+                returnedCount: recordings.length,
+                userId: userId
+            }
+        });
     } catch (error) {
         console.error('Error fetching user recordings:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Get user's browser activities
+// Get user's browser activities with debugging
 app.get('/api/users/:userId/browser-activities', authenticateToken, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 50;
-        const activities = await browserActivities
-            .find({ userId: req.params.userId })
-            .sort({ date: -1 })
-            .limit(limit);
+        const userId = req.params.userId;
 
-        res.json({ activities });
+        console.log('Searching for browser activities:', {
+            userId,
+            limit
+        });
+
+        // Try different user ID formats
+        const possibleUserIds = [
+            userId,
+            userId.toLowerCase(),
+            userId.toUpperCase(),
+            userId.replace(/^USER/i, 'U')
+        ];
+
+        let activities = [];
+        for (const id of possibleUserIds) {
+            activities = await browserActivities
+                .find({ userId: id })
+                .sort({ date: -1 })
+                .limit(limit);
+            
+            if (activities.length > 0) {
+                console.log(`Found ${activities.length} activities for user ID: ${id}`);
+                break;
+            }
+        }
+
+        res.json({ 
+            activities,
+            debug: {
+                searchedIds: possibleUserIds,
+                foundCount: activities.length,
+                userId: userId
+            }
+        });
     } catch (error) {
         console.error('Error fetching browser activities:', error);
         res.status(500).json({ error: error.message });
