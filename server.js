@@ -62,16 +62,12 @@ const screenshotSchema = new mongoose.Schema({
     imagePath: String        // Path to the saved screenshot
 });
 
-// Browser Activities Schema
 const browserActivitiesSchema = new mongoose.Schema({
-    userId: { type: String, required: true },
-    projectId: { type: String, required: true },
+    userId: String,
+    projectId: String,
     title: String,
-    application: String,
-    timeSpentPercentage: Number,
-    tabTitle: String,  // Specific tab or file name
-    url: String,       // For browser tabs
-    path: String,      // For editor files
+    application:String,
+    timeSpentPercentage: Number, // Percentage of time spent on the URL during tracking
     date: { type: Date, default: Date.now }
 });
 
@@ -743,44 +739,34 @@ app.get('/api/activity-this-week/:userId', async (req, res) => {
     }
 });
 
-// Get user's browser activities
-app.get('/api/users/:userId/browser-activities', authenticateToken, async (req, res) => {
+app.get('/api/browser-activities/:userId', async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 50;
-        const userId = req.params.userId;
+        const { userId } = req.params;
+        
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID is required' });
+        }
 
-        console.log('Fetching browser activities for user:', userId);
+        console.log('Server: Fetching activities for user:', userId);
 
-        const activities = await BrowserActivity
-            .find({ userId })
-            .sort({ date: -1 })
-            .limit(limit);
+        // Ensure we're using the correct model and query
+        const activities = await browserActivities
+            .find({ 
+                userId: userId.toString().trim() // Clean and convert userId to string
+            })
+            .sort({ timestamp: -1 })
+            .limit(5);
 
-        console.log('Found activities:', {
-            count: activities.length,
-            userId,
-            mostRecent: activities[0]?.date
-        });
+        console.log(`Server: Found ${activities.length} activities for user:`, userId);
 
-        res.json({ 
-            activities,
-            debug: {
-                totalFound: activities.length,
-                userId
-            }
-        });
+        // Always return a 200 status, even with empty results
+        res.status(200).json(activities || []);
+
     } catch (error) {
-        console.error('Error fetching browser activities:', error);
-        res.status(500).json({ 
-            error: error.message,
-            debug: {
-                userId: req.params.userId,
-                attempted: true
-            }
-        });
+        console.error('Server: Error fetching browser activities:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
-
 
   
 //   app.get('/api/browser-activities', async (req, res) => {
@@ -1030,65 +1016,41 @@ app.get('/api/browser-activities', async (req, res) => {
     }
   });
 
-// Save browser activities
-app.post('/api/browser-activities', authenticateToken, async (req, res) => {
+app.post('/api/browser-activities', async (req, res) => {
+    const activities = req.body.activities;
+    console.log('Received request:', JSON.stringify(req.body, null, 2));
+
+    // Validate that activities is an array
+    if (!Array.isArray(activities)) {
+        console.error('Error: activities is not an array');
+        return res.status(400).json({ error: 'Invalid data format: activities should be an array' });
+    }
+
     try {
-        const { userId, projectId, activities } = req.body;
+        for (let activity of activities) {
+            const { userId, projectId, title, application, timeSpentPercentage } = activity;
 
-        // Log the received data
-        console.log('Saving browser activities:', {
-            userId,
-            projectId,
-            activityCount: activities?.length
-        });
+            if (!userId || !projectId || !title || !application || timeSpentPercentage == null) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
 
-        // Validate required fields
-        if (!userId || !projectId || !Array.isArray(activities)) {
-            return res.status(400).json({
-                error: 'Invalid request data',
-                details: 'userId, projectId, and activities array are required'
+            // Create a new activity document
+            const activityDoc = new browserActivities({
+                userId,
+                projectId,
+                title,
+                application,
+                timeSpentPercentage,
             });
+
+            // Save the activity document in the database
+            await activityDoc.save();
         }
 
-        // Save all activities
-        const savedActivities = await Promise.all(
-            activities.map(activity => {
-                const browserActivity = new BrowserActivity({
-                    userId,
-                    projectId,
-                    title: activity.title,
-                    application: activity.application,
-                    timeSpentPercentage: activity.timeSpentPercentage,
-                    tabTitle: activity.tabTitle,
-                    url: activity.url,
-                    path: activity.path,
-                    date: activity.timestamp || new Date()
-                });
-                return browserActivity.save();
-            })
-        );
-
-        console.log('Successfully saved activities:', {
-            count: savedActivities.length,
-            userId,
-            projectId
-        });
-
-        res.status(201).json({
-            success: true,
-            savedCount: savedActivities.length,
-            activities: savedActivities
-        });
+        res.status(201).json({ message: 'Activities saved successfully' });
     } catch (error) {
-        console.error('Error saving browser activities:', error);
-        res.status(500).json({
-            error: error.message,
-            debug: {
-                userId: req.body.userId,
-                projectId: req.body.projectId,
-                attempted: true
-            }
-        });
+        console.error('Error saving activity:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -1782,345 +1744,3 @@ const taskSchema = new mongoose.Schema({
 
 const Task = mongoose.model('Task', taskSchema);
 const DailyTime = mongoose.model('DailyTime', dailyTimeSchema);
-
-// Get user's total tasks count
-app.get('/api/users/:userId/tasks/count', authenticateToken, async (req, res) => {
-    try {
-        const count = await Task.countDocuments({ userId: req.params.userId });
-        res.json({ count });
-    } catch (error) {
-        console.error('Error counting tasks:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get user's total hours worked (all time)
-app.get('/api/users/:userId/total-hours', authenticateToken, async (req, res) => {
-    try {
-        const dailyTimes = await DailyTime.find({ userId: req.params.userId });
-        const totalSeconds = dailyTimes.reduce((acc, curr) => acc + (curr.totalSeconds || 0), 0);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        
-        res.json({
-            totalSeconds,
-            formatted: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-        });
-    } catch (error) {
-        console.error('Error calculating total hours:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get user's hours worked today
-app.get('/api/users/:userId/hours-today', authenticateToken, async (req, res) => {
-    try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        const dailyTime = await DailyTime.findOne({
-            userId: req.params.userId,
-            date: {
-                $gte: today,
-                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-            }
-        });
-
-        const totalSeconds = dailyTime ? dailyTime.totalSeconds : 0;
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-
-        res.json({
-            totalSeconds,
-            formatted: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-        });
-    } catch (error) {
-        console.error('Error calculating today\'s hours:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get user's recent screenshots
-app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 10;
-        const userId = req.params.userId;
-
-        // Log request details
-        console.log('Screenshot request details:', {
-            userId,
-            bucketName,
-            userToken: req.headers.authorization ? 'Present' : 'Missing',
-            requestTime: new Date().toISOString()
-        });
-
-        const params = {
-            Bucket: bucketName,
-            Prefix: `screenshots/${userId}/`
-        };
-
-        // Log S3 request
-        console.log('S3 request params:', params);
-
-        const data = await s3.listObjectsV2(params).promise();
-        
-        // Log S3 response details
-        console.log('S3 Response details:', {
-            success: !!data,
-            hasContents: !!data?.Contents,
-            totalItems: data?.Contents?.length || 0,
-            firstKey: data?.Contents?.[0]?.Key || 'No items',
-            bucketName: bucketName,
-            region: process.env.AWS_REGION || 'default-region'
-        });
-
-        if (!data.Contents || data.Contents.length === 0) {
-            // Try alternative search without trailing slash
-            const altParams = {
-                Bucket: bucketName,
-                Prefix: `screenshots/${userId}`
-            };
-            
-            console.log('Trying alternative S3 params:', altParams);
-            const altData = await s3.listObjectsV2(altParams).promise();
-            
-            // Log alternative search results
-            console.log('Alternative S3 search results:', {
-                success: !!altData,
-                hasContents: !!altData?.Contents,
-                totalItems: altData?.Contents?.length || 0,
-                firstKey: altData?.Contents?.[0]?.Key || 'No items'
-            });
-
-            if (!altData.Contents || altData.Contents.length === 0) {
-                // Try searching in root screenshots directory
-                const rootParams = {
-                    Bucket: bucketName,
-                    Prefix: 'screenshots/'
-                };
-                
-                console.log('Trying root screenshots directory:', rootParams);
-                const rootData = await s3.listObjectsV2(rootParams).promise();
-                
-                // Log root directory search results
-                console.log('Root directory search results:', {
-                    success: !!rootData,
-                    hasContents: !!rootData?.Contents,
-                    totalItems: rootData?.Contents?.length || 0,
-                    firstKey: rootData?.Contents?.[0]?.Key || 'No items'
-                });
-
-                // Filter for this user's screenshots if they exist
-                const userScreenshots = rootData.Contents ? 
-                    rootData.Contents.filter(item => item.Key.includes(userId)) : [];
-
-                if (userScreenshots.length > 0) {
-                    const screenshots = userScreenshots
-                        .map(item => ({
-                            url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
-                            timestamp: item.LastModified,
-                            key: item.Key
-                        }))
-                        .sort((a, b) => b.timestamp - a.timestamp)
-                        .slice(0, limit);
-
-                    return res.json({ 
-                        screenshots,
-                        debug: {
-                            searchPath: 'screenshots/',
-                            totalFound: userScreenshots.length,
-                            userIdMatch: userId,
-                            searchMethod: 'root-directory'
-                        }
-                    });
-                }
-            }
-
-            return res.json({ 
-                screenshots: [],
-                debug: {
-                    searchPath: `screenshots/${userId}/`,
-                    altSearchPath: 'screenshots/',
-                    reason: 'No screenshots found for this user',
-                    userId: userId,
-                    bucketName: bucketName,
-                    region: process.env.AWS_REGION || 'default-region',
-                    s3Configured: !!s3.config.credentials,
-                    authToken: req.headers.authorization ? 'Present' : 'Missing'
-                }
-            });
-        }
-
-        const screenshots = data.Contents
-            .map(item => ({
-                url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
-                timestamp: item.LastModified,
-                key: item.Key
-            }))
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, limit);
-
-        res.json({ 
-            screenshots,
-            debug: {
-                searchPath: `screenshots/${userId}/`,
-                totalFound: data.Contents.length,
-                returnedCount: screenshots.length,
-                searchMethod: 'direct-path'
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching user screenshots:', error);
-        res.status(500).json({ 
-            error: error.message,
-            debug: {
-                userId: req.params.userId,
-                bucketName,
-                searchAttempted: true,
-                errorType: error.name,
-                errorStack: error.stack,
-                s3Configured: !!s3.config.credentials,
-                authToken: req.headers.authorization ? 'Present' : 'Missing'
-            }
-        });
-    }
-});
-
-// Get user's screen recordings
-app.get('/api/users/:userId/recordings', authenticateToken, async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 10;
-        const params = {
-            Bucket: bucketName,
-            Prefix: `recordings/${req.params.userId}/`
-        };
-
-        const data = await s3.listObjectsV2(params).promise();
-        if (!data.Contents || data.Contents.length === 0) {
-            return res.json({ recordings: [] });
-        }
-
-        const recordings = data.Contents
-            .map(item => ({
-                url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
-                timestamp: item.LastModified,
-                key: item.Key
-            }))
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, limit);
-
-        res.json({ recordings });
-    } catch (error) {
-        console.error('Error fetching user recordings:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get user's browser activities
-app.get('/api/users/:userId/browser-activities', authenticateToken, async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 50;
-        const activities = await browserActivities
-            .find({ userId: req.params.userId })
-            .sort({ date: -1 })
-            .limit(limit);
-
-        res.json({ activities });
-    } catch (error) {
-        console.error('Error fetching browser activities:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get user's activity summary
-app.get('/api/users/:userId/activity-summary', authenticateToken, async (req, res) => {
-    try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        // Get today's activity
-        const todayActivity = await UserActivity.findOne({
-            userId: req.params.userId,
-            date: {
-                $gte: today,
-                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-            }
-        });
-
-        // Get this week's activity
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(endOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-
-        const weekActivity = await UserActivity.find({
-            userId: req.params.userId,
-            date: { $gte: startOfWeek, $lte: endOfWeek }
-        });
-
-        // Calculate activity percentages
-        const todayStats = todayActivity ? {
-            mouseUsagePercentage: todayActivity.mouseUsagePercentage || 0,
-            keyboardUsagePercentage: todayActivity.keyboardUsagePercentage || 0,
-            totalTime: todayActivity.totalTime || 0
-        } : { mouseUsagePercentage: 0, keyboardUsagePercentage: 0, totalTime: 0 };
-
-        const weekStats = {
-            mouseUsagePercentage: weekActivity.reduce((acc, curr) => acc + (curr.mouseUsagePercentage || 0), 0) / (weekActivity.length || 1),
-            keyboardUsagePercentage: weekActivity.reduce((acc, curr) => acc + (curr.keyboardUsagePercentage || 0), 0) / (weekActivity.length || 1),
-            totalTime: weekActivity.reduce((acc, curr) => acc + (curr.totalTime || 0), 0)
-        };
-
-        res.json({
-            today: todayStats,
-            thisWeek: weekStats
-        });
-    } catch (error) {
-        console.error('Error fetching activity summary:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get user's tasks with pagination and filters
-app.get('/api/users/:userId/tasks', authenticateToken, async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const status = req.query.status;
-        const priority = req.query.priority;
-        const search = req.query.search;
-
-        let query = { userId: req.params.userId };
-
-        // Add filters if provided
-        if (status) query.status = status;
-        if (priority) query.priority = priority;
-        if (search) {
-            query.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } }
-            ];
-        }
-
-        const total = await Task.countDocuments(query);
-        const tasks = await Task.find(query)
-            .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(limit);
-
-        res.json({
-            tasks,
-            pagination: {
-                total,
-                page,
-                pages: Math.ceil(total / limit)
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching tasks:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
