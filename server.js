@@ -1808,14 +1808,80 @@ app.get('/api/users/:userId/hours-today', authenticateToken, async (req, res) =>
 app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 10;
+        const userId = req.params.userId;
+
+        // Log the search parameters
+        console.log('Fetching screenshots for:', {
+            userId,
+            bucketName,
+            prefix: `screenshots/${userId}/`
+        });
+
         const params = {
             Bucket: bucketName,
-            Prefix: `screenshots/${req.params.userId}/`
+            Prefix: `screenshots/${userId}/`
         };
 
         const data = await s3.listObjectsV2(params).promise();
+        
+        // Log the S3 response
+        console.log('S3 Response:', {
+            found: !!data.Contents,
+            totalItems: data.Contents ? data.Contents.length : 0,
+            keyPrefix: `screenshots/${userId}/`
+        });
+
         if (!data.Contents || data.Contents.length === 0) {
-            return res.json({ screenshots: [] });
+            // Try without user ID subfolder
+            const altParams = {
+                Bucket: bucketName,
+                Prefix: 'screenshots/'
+            };
+            
+            const altData = await s3.listObjectsV2(altParams).promise();
+            
+            // Log alternative search results
+            console.log('Alternative S3 Search:', {
+                found: !!altData.Contents,
+                totalItems: altData.Contents ? altData.Contents.length : 0
+            });
+
+            // Filter for this user's screenshots if they exist
+            const userScreenshots = altData.Contents ? 
+                altData.Contents.filter(item => {
+                    // Check if the key contains the user ID in any format
+                    return item.Key.includes(userId);
+                }) : [];
+
+            if (userScreenshots.length > 0) {
+                const screenshots = userScreenshots
+                    .map(item => ({
+                        url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                        timestamp: item.LastModified,
+                        key: item.Key
+                    }))
+                    .sort((a, b) => b.timestamp - a.timestamp)
+                    .slice(0, limit);
+
+                return res.json({ 
+                    screenshots,
+                    debug: {
+                        searchPath: 'screenshots/',
+                        totalFound: userScreenshots.length,
+                        userIdMatch: userId
+                    }
+                });
+            }
+
+            return res.json({ 
+                screenshots: [],
+                debug: {
+                    searchPath: `screenshots/${userId}/`,
+                    altSearchPath: 'screenshots/',
+                    reason: 'No screenshots found for this user',
+                    userId: userId
+                }
+            });
         }
 
         const screenshots = data.Contents
@@ -1827,10 +1893,24 @@ app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) =>
             .sort((a, b) => b.timestamp - a.timestamp)
             .slice(0, limit);
 
-        res.json({ screenshots });
+        res.json({ 
+            screenshots,
+            debug: {
+                searchPath: `screenshots/${userId}/`,
+                totalFound: data.Contents.length,
+                returnedCount: screenshots.length
+            }
+        });
     } catch (error) {
         console.error('Error fetching user screenshots:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            error: error.message,
+            debug: {
+                userId: req.params.userId,
+                bucketName,
+                searchAttempted: true
+            }
+        });
     }
 });
 
