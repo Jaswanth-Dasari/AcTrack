@@ -1745,14 +1745,12 @@ const taskSchema = new mongoose.Schema({
 const Task = mongoose.model('Task', taskSchema);
 const DailyTime = mongoose.model('DailyTime', dailyTimeSchema);
 
-// Add a new endpoint specifically for user screenshots
 app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) => {
     try {
-        // Get userId from params and verify it matches the authenticated user
         const requestedUserId = req.params.userId;
         const authenticatedUserId = req.user.userId;
+        const limit = parseInt(req.query.limit) || 50; // Changed default to 50
 
-        // Security check - ensure users can only access their own screenshots
         if (requestedUserId !== authenticatedUserId) {
             return res.status(403).json({
                 error: 'Unauthorized access',
@@ -1781,24 +1779,24 @@ app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) =>
                 key: item.Key
             }))
             .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 10);
+            .slice(0, limit); // Now using the limit variable
 
-        res.status(200).json(screenshots);
-
+        res.status(200).json({
+            screenshots,
+            total: data.Contents.length,
+            showing: screenshots.length,
+            hasMore: data.Contents.length > limit
+        });
     } catch (error) {
         console.error('Error fetching user screenshots:', error);
-        res.status(500).json({ 
-            error: 'Failed to fetch screenshots',
-            details: error.message
-        });
+        res.status(500).json({ error: error.message });
     }
 });
-
 app.get('/api/users/:userId/recordings', authenticateToken, async (req, res) => {
     try {
-        // Security check - ensure users can only access their own recordings
         const requestedUserId = req.params.userId;
         const authenticatedUserId = req.user.userId;
+        const limit = parseInt(req.query.limit) || 50; // Changed default to 50
 
         if (requestedUserId !== authenticatedUserId) {
             return res.status(403).json({
@@ -1828,9 +1826,14 @@ app.get('/api/users/:userId/recordings', authenticateToken, async (req, res) => 
                 key: item.Key
             }))
             .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 10); // Limit to 10 most recent recordings
+            .slice(0, limit);
 
-        res.status(200).json({ recordings });
+        res.status(200).json({
+            recordings,
+            total: data.Contents.length,
+            showing: recordings.length,
+            hasMore: data.Contents.length > limit
+        });
     } catch (error) {
         console.error('Error fetching user recordings:', error);
         res.status(500).json({ error: error.message });
@@ -1839,9 +1842,9 @@ app.get('/api/users/:userId/recordings', authenticateToken, async (req, res) => 
 
 app.get('/api/users/:userId/browser-activities', authenticateToken, async (req, res) => {
     try {
-        // Security check
         const requestedUserId = req.params.userId;
         const authenticatedUserId = req.user.userId;
+        const limit = parseInt(req.query.limit) || 50; // Default is already 50
 
         if (requestedUserId !== authenticatedUserId) {
             return res.status(403).json({
@@ -1850,22 +1853,17 @@ app.get('/api/users/:userId/browser-activities', authenticateToken, async (req, 
             });
         }
 
-        const limit = parseInt(req.query.limit) || 50;
+        const totalCount = await browserActivities.countDocuments({ userId: requestedUserId });
         const activities = await browserActivities
             .find({ userId: requestedUserId })
             .sort({ date: -1 })
             .limit(limit);
 
-        if (!activities || activities.length === 0) {
-            return res.status(200).json({
-                activities: [],
-                message: `No browser activities found for user ${requestedUserId}`
-            });
-        }
-
         res.status(200).json({ 
             activities,
-            count: activities.length
+            total: totalCount,
+            showing: activities.length,
+            hasMore: totalCount > limit
         });
     } catch (error) {
         console.error('Error fetching browser activities:', error);
@@ -1937,9 +1935,13 @@ app.get('/api/users/:userId/activity-summary', authenticateToken, async (req, re
 
 app.get('/api/users/:userId/tasks', authenticateToken, async (req, res) => {
     try {
-        // Security check
         const requestedUserId = req.params.userId;
         const authenticatedUserId = req.user.userId;
+        const limit = parseInt(req.query.limit) || 50; // Changed default to 50
+        const page = parseInt(req.query.page) || 1;
+        const status = req.query.status;
+        const priority = req.query.priority;
+        const search = req.query.search;
 
         if (requestedUserId !== authenticatedUserId) {
             return res.status(403).json({
@@ -1948,15 +1950,8 @@ app.get('/api/users/:userId/tasks', authenticateToken, async (req, res) => {
             });
         }
 
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const status = req.query.status;
-        const priority = req.query.priority;
-        const search = req.query.search;
-
         let query = { userId: requestedUserId };
 
-        // Add filters if provided
         if (status) query.status = status;
         if (priority) query.priority = priority;
         if (search) {
@@ -1978,7 +1973,8 @@ app.get('/api/users/:userId/tasks', authenticateToken, async (req, res) => {
                 total,
                 page,
                 pages: Math.ceil(total / limit),
-                limit
+                limit,
+                hasMore: total > page * limit
             },
             filters: {
                 status,
