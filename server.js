@@ -2206,3 +2206,220 @@ function formatTime(seconds) {
     const remainingSeconds = seconds % 60;
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
+
+app.get('/api/users/:userId/browser-activities/daily', authenticateToken, async (req, res) => {
+    try {
+        const requestedUserId = req.params.userId;
+        const authenticatedUserId = req.user.userId;
+        const limit = parseInt(req.query.limit) || 50;
+
+        // Get date range from query params, default to last 7 days if not specified
+        const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
+        const startDate = req.query.startDate 
+            ? new Date(req.query.startDate)
+            : new Date(endDate.getTime() - (7 * 24 * 60 * 60 * 1000));
+
+        // Security check
+        if (requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({
+                error: 'Unauthorized access',
+                message: 'You can only access your own browser activities'
+            });
+        }
+
+        // Find browser activities within date range
+        const activities = await browserActivities.find({
+            userId: requestedUserId,
+            date: {
+                $gte: startDate,
+                $lte: endDate
+            }
+        }).sort({ date: -1 });
+
+        // Group activities by date
+        const dailyActivities = activities.reduce((acc, activity) => {
+            const dateKey = new Date(activity.date).toISOString().split('T')[0];
+            
+            if (!acc[dateKey]) {
+                acc[dateKey] = {
+                    date: dateKey,
+                    totalTimeSpent: 0,
+                    applications: {},
+                    websites: {},
+                    productiveTime: 0,
+                    unproductiveTime: 0,
+                    activities: []
+                };
+            }
+
+            // Add to total time
+            const timeSpent = activity.timeSpentPercentage || 0;
+            acc[dateKey].totalTimeSpent += timeSpent;
+
+            // Group by application
+            if (activity.application) {
+                if (!acc[dateKey].applications[activity.application]) {
+                    acc[dateKey].applications[activity.application] = {
+                        timeSpent: 0,
+                        titles: new Set(),
+                        urls: new Set()
+                    };
+                }
+                acc[dateKey].applications[activity.application].timeSpent += timeSpent;
+                if (activity.title) {
+                    acc[dateKey].applications[activity.application].titles.add(activity.title);
+                }
+                if (activity.url) {
+                    acc[dateKey].applications[activity.application].urls.add(activity.url);
+                }
+            }
+
+            // Track website usage if it's a browser
+            if (activity.url) {
+                const domain = new URL(activity.url).hostname;
+                if (!acc[dateKey].websites[domain]) {
+                    acc[dateKey].websites[domain] = {
+                        timeSpent: 0,
+                        visits: 0,
+                        pages: new Set()
+                    };
+                }
+                acc[dateKey].websites[domain].timeSpent += timeSpent;
+                acc[dateKey].websites[domain].visits += 1;
+                acc[dateKey].websites[domain].pages.add(activity.url);
+            }
+
+            // Add to activities array
+            acc[dateKey].activities.push({
+                title: activity.title,
+                application: activity.application,
+                timeSpent,
+                url: activity.url,
+                tabTitle: activity.tabTitle,
+                timestamp: activity.date
+            });
+
+            return acc;
+        }, {});
+
+        // Process daily data and calculate statistics
+        const processedDailyData = Object.entries(dailyActivities)
+            .map(([date, data]) => {
+                // Convert applications data
+                const applications = Object.entries(data.applications).map(([app, appData]) => ({
+                    name: app,
+                    timeSpent: appData.timeSpent,
+                    timeSpentFormatted: formatTime(appData.timeSpent * 60), // Convert to seconds
+                    percentage: (appData.timeSpent / data.totalTimeSpent * 100).toFixed(2),
+                    uniqueTitles: Array.from(appData.titles),
+                    uniqueUrls: Array.from(appData.urls)
+                })).sort((a, b) => b.timeSpent - a.timeSpent);
+
+                // Convert websites data
+                const websites = Object.entries(data.websites).map(([domain, webData]) => ({
+                    domain,
+                    timeSpent: webData.timeSpent,
+                    timeSpentFormatted: formatTime(webData.timeSpent * 60),
+                    percentage: (webData.timeSpent / data.totalTimeSpent * 100).toFixed(2),
+                    visits: webData.visits,
+                    uniquePages: Array.from(webData.pages)
+                })).sort((a, b) => b.timeSpent - a.timeSpent);
+
+                // Calculate hourly distribution
+                const hourlyDistribution = data.activities.reduce((acc, activity) => {
+                    const hour = new Date(activity.timestamp).getHours();
+                    if (!acc[hour]) acc[hour] = 0;
+                    acc[hour] += activity.timeSpent;
+                    return acc;
+                }, {});
+
+                return {
+                    date,
+                    summary: {
+                        totalTimeSpent: data.totalTimeSpent,
+                        totalTimeSpentFormatted: formatTime(data.totalTimeSpent * 60),
+                        totalApplications: applications.length,
+                        totalWebsites: websites.length,
+                        mostUsedApplication: applications[0],
+                        mostVisitedWebsite: websites[0],
+                        hourlyDistribution
+                    },
+                    applications,
+                    websites,
+                    activityTimeline: data.activities
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                        .slice(0, limit)
+                };
+            })
+            .sort((a, b) => b.date.localeCompare(a.date));
+
+        // Calculate overall statistics
+        const overallStats = {
+            totalDays: processedDailyData.length,
+            averageDailyTime: processedDailyData.reduce((acc, day) => 
+                acc + day.summary.totalTimeSpent, 0) / processedDailyData.length,
+            mostProductiveDay: processedDailyData
+                .sort((a, b) => b.summary.totalTimeSpent - a.summary.totalTimeSpent)[0],
+            topApplications: aggregateTopItems(processedDailyData, 'applications', 5),
+            topWebsites: aggregateTopItems(processedDailyData, 'websites', 5),
+            dateRange: {
+                start: startDate,
+                end: endDate
+            }
+        };
+
+        res.status(200).json({
+            dailyActivities: processedDailyData,
+            overallStats,
+            metadata: {
+                userId: requestedUserId,
+                generatedAt: new Date(),
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching browser activities:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch browser activities',
+            details: error.message
+        });
+    }
+});
+
+// Helper function to aggregate top items across all days
+function aggregateTopItems(data, itemType, limit) {
+    const aggregated = {};
+    
+    data.forEach(day => {
+        day[itemType].forEach(item => {
+            const key = itemType === 'applications' ? item.name : item.domain;
+            if (!aggregated[key]) {
+                aggregated[key] = {
+                    name: key,
+                    totalTimeSpent: 0,
+                    occurrences: 0
+                };
+            }
+            aggregated[key].totalTimeSpent += item.timeSpent;
+            aggregated[key].occurrences += 1;
+        });
+    });
+
+    return Object.values(aggregated)
+        .sort((a, b) => b.totalTimeSpent - a.totalTimeSpent)
+        .slice(0, limit)
+        .map(item => ({
+            ...item,
+            timeSpentFormatted: formatTime(item.totalTimeSpent * 60),
+            averageTimePerDay: item.totalTimeSpent / item.occurrences
+        }));
+}
+
+// Helper function to format time in HH:MM:SS
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
