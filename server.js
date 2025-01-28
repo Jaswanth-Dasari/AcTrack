@@ -1749,7 +1749,7 @@ app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) =>
     try {
         const requestedUserId = req.params.userId;
         const authenticatedUserId = req.user.userId;
-        const limit = parseInt(req.query.limit) || 50; // Changed default to 50
+        const limit = parseInt(req.query.limit) || 50;
 
         if (requestedUserId !== authenticatedUserId) {
             return res.status(403).json({
@@ -1772,24 +1772,89 @@ app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) =>
             });
         }
 
-        const screenshots = data.Contents
-            .map(item => ({
-                url: `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
-                timestamp: item.LastModified,
-                key: item.Key
-            }))
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, limit); // Now using the limit variable
+        // Get detailed metadata for each screenshot
+        const screenshotsWithMetadata = await Promise.all(
+            data.Contents
+                .sort((a, b) => b.LastModified - a.LastModified)
+                .slice(0, limit)
+                .map(async (item) => {
+                    try {
+                        // Get the head object to retrieve metadata
+                        const headParams = {
+                            Bucket: params.Bucket,
+                            Key: item.Key
+                        };
+                        
+                        const metadata = await s3.headObject(headParams).promise();
+                        
+                        // Extract timestamp from the key or use LastModified
+                        const timestampMatch = item.Key.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)/);
+                        const timestamp = timestampMatch ? new Date(timestampMatch[1]) : item.LastModified;
+
+                        return {
+                            url: `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                            key: item.Key,
+                            timestamp: timestamp,
+                            lastModified: item.LastModified,
+                            size: item.Size,
+                            metadata: metadata.Metadata || {},
+                            contentType: metadata.ContentType,
+                            contentLength: metadata.ContentLength,
+                            etag: metadata.ETag,
+                            serverSideEncryption: metadata.ServerSideEncryption,
+                            // Extract additional information from the key
+                            fileInfo: {
+                                userId: requestedUserId,
+                                fileName: item.Key.split('/').pop(),
+                                path: item.Key,
+                                directory: item.Key.split('/').slice(0, -1).join('/')
+                            }
+                        };
+                    } catch (error) {
+                        console.error(`Error fetching metadata for ${item.Key}:`, error);
+                        // Return basic info if metadata fetch fails
+                        return {
+                            url: `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                            key: item.Key,
+                            timestamp: item.LastModified,
+                            error: 'Failed to fetch metadata',
+                            size: item.Size
+                        };
+                    }
+                })
+        );
+
+        // Group screenshots by date
+        const groupedScreenshots = screenshotsWithMetadata.reduce((groups, screenshot) => {
+            const date = new Date(screenshot.timestamp).toISOString().split('T')[0];
+            if (!groups[date]) {
+                groups[date] = [];
+            }
+            groups[date].push(screenshot);
+            return groups;
+        }, {});
 
         res.status(200).json({
-            screenshots,
-            total: data.Contents.length,
-            showing: screenshots.length,
-            hasMore: data.Contents.length > limit
+            screenshots: screenshotsWithMetadata,
+            groupedByDate: groupedScreenshots,
+            summary: {
+                total: data.Contents.length,
+                showing: screenshotsWithMetadata.length,
+                hasMore: data.Contents.length > limit,
+                dateRange: {
+                    oldest: new Date(Math.min(...screenshotsWithMetadata.map(s => new Date(s.timestamp)))),
+                    newest: new Date(Math.max(...screenshotsWithMetadata.map(s => new Date(s.timestamp))))
+                },
+                totalSize: screenshotsWithMetadata.reduce((sum, screenshot) => sum + screenshot.size, 0)
+            }
         });
+
     } catch (error) {
         console.error('Error fetching user screenshots:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            error: 'Failed to fetch screenshots',
+            details: error.message
+        });
     }
 });
 app.get('/api/users/:userId/recordings', authenticateToken, async (req, res) => {
