@@ -1744,3 +1744,52 @@ const taskSchema = new mongoose.Schema({
 
 const Task = mongoose.model('Task', taskSchema);
 const DailyTime = mongoose.model('DailyTime', dailyTimeSchema);
+
+// Add a new endpoint specifically for user screenshots
+app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) => {
+    try {
+        // Get userId from params and verify it matches the authenticated user
+        const requestedUserId = req.params.userId;
+        const authenticatedUserId = req.user.userId;
+
+        // Security check - ensure users can only access their own screenshots
+        if (requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({
+                error: 'Unauthorized access',
+                message: 'You can only access your own screenshots'
+            });
+        }
+
+        const params = {
+            Bucket: process.env.S3_BUCKET_NAME || "time-tracking-persist-ventures",
+            Prefix: `screenshots/${requestedUserId}/`
+        };
+
+        const data = await s3.listObjectsV2(params).promise();
+        
+        if (!data || !data.Contents || data.Contents.length === 0) {
+            return res.status(200).json({ 
+                screenshots: [],
+                message: `No screenshots found for user ${requestedUserId}`
+            });
+        }
+
+        const screenshots = data.Contents
+            .map(item => ({
+                url: `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                timestamp: item.LastModified,
+                key: item.Key
+            }))
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 10);
+
+        res.status(200).json(screenshots);
+
+    } catch (error) {
+        console.error('Error fetching user screenshots:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch screenshots',
+            details: error.message
+        });
+    }
+});
