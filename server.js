@@ -1793,3 +1793,201 @@ app.get('/api/users/:userId/screenshots', authenticateToken, async (req, res) =>
         });
     }
 });
+
+app.get('/api/users/:userId/recordings', authenticateToken, async (req, res) => {
+    try {
+        // Security check - ensure users can only access their own recordings
+        const requestedUserId = req.params.userId;
+        const authenticatedUserId = req.user.userId;
+
+        if (requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({
+                error: 'Unauthorized access',
+                message: 'You can only access your own recordings'
+            });
+        }
+
+        const params = {
+            Bucket: process.env.S3_BUCKET_NAME || "time-tracking-persist-ventures",
+            Prefix: `recordings/${requestedUserId}/`
+        };
+
+        const data = await s3.listObjectsV2(params).promise();
+        
+        if (!data || !data.Contents || data.Contents.length === 0) {
+            return res.status(200).json({ 
+                recordings: [],
+                message: `No recordings found for user ${requestedUserId}`
+            });
+        }
+
+        const recordings = data.Contents
+            .map(item => ({
+                url: `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${item.Key}`,
+                timestamp: item.LastModified,
+                key: item.Key
+            }))
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 10); // Limit to 10 most recent recordings
+
+        res.status(200).json({ recordings });
+    } catch (error) {
+        console.error('Error fetching user recordings:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/users/:userId/browser-activities', authenticateToken, async (req, res) => {
+    try {
+        // Security check
+        const requestedUserId = req.params.userId;
+        const authenticatedUserId = req.user.userId;
+
+        if (requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({
+                error: 'Unauthorized access',
+                message: 'You can only access your own browser activities'
+            });
+        }
+
+        const limit = parseInt(req.query.limit) || 50;
+        const activities = await browserActivities
+            .find({ userId: requestedUserId })
+            .sort({ date: -1 })
+            .limit(limit);
+
+        if (!activities || activities.length === 0) {
+            return res.status(200).json({
+                activities: [],
+                message: `No browser activities found for user ${requestedUserId}`
+            });
+        }
+
+        res.status(200).json({ 
+            activities,
+            count: activities.length
+        });
+    } catch (error) {
+        console.error('Error fetching browser activities:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/users/:userId/activity-summary', authenticateToken, async (req, res) => {
+    try {
+        // Security check
+        const requestedUserId = req.params.userId;
+        const authenticatedUserId = req.user.userId;
+
+        if (requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({
+                error: 'Unauthorized access',
+                message: 'You can only access your own activity summary'
+            });
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Get today's activity
+        const todayActivity = await UserActivity.findOne({
+            userId: requestedUserId,
+            date: {
+                $gte: today,
+                $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+            }
+        });
+
+        // Get this week's activity
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(endOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+
+        const weekActivity = await UserActivity.find({
+            userId: requestedUserId,
+            date: { $gte: startOfWeek, $lte: endOfWeek }
+        });
+
+        // Calculate activity percentages
+        const todayStats = todayActivity ? {
+            mouseUsagePercentage: todayActivity.mouseUsagePercentage || 0,
+            keyboardUsagePercentage: todayActivity.keyboardUsagePercentage || 0,
+            totalTime: todayActivity.totalTime || 0
+        } : { mouseUsagePercentage: 0, keyboardUsagePercentage: 0, totalTime: 0 };
+
+        const weekStats = {
+            mouseUsagePercentage: weekActivity.reduce((acc, curr) => acc + (curr.mouseUsagePercentage || 0), 0) / (weekActivity.length || 1),
+            keyboardUsagePercentage: weekActivity.reduce((acc, curr) => acc + (curr.keyboardUsagePercentage || 0), 0) / (weekActivity.length || 1),
+            totalTime: weekActivity.reduce((acc, curr) => acc + (curr.totalTime || 0), 0)
+        };
+
+        res.json({
+            userId: requestedUserId,
+            today: todayStats,
+            thisWeek: weekStats,
+            lastUpdated: new Date()
+        });
+    } catch (error) {
+        console.error('Error fetching activity summary:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/users/:userId/tasks', authenticateToken, async (req, res) => {
+    try {
+        // Security check
+        const requestedUserId = req.params.userId;
+        const authenticatedUserId = req.user.userId;
+
+        if (requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({
+                error: 'Unauthorized access',
+                message: 'You can only access your own tasks'
+            });
+        }
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const status = req.query.status;
+        const priority = req.query.priority;
+        const search = req.query.search;
+
+        let query = { userId: requestedUserId };
+
+        // Add filters if provided
+        if (status) query.status = status;
+        if (priority) query.priority = priority;
+        if (search) {
+            query.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const total = await Task.countDocuments(query);
+        const tasks = await Task.find(query)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        res.json({
+            tasks,
+            pagination: {
+                total,
+                page,
+                pages: Math.ceil(total / limit),
+                limit
+            },
+            filters: {
+                status,
+                priority,
+                search
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching tasks:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
