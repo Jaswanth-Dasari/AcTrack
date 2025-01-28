@@ -2052,3 +2052,157 @@ app.get('/api/users/:userId/tasks', authenticateToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// Daily Times Endpoint with detailed tracking data
+app.get('/api/users/:userId/daily-times', authenticateToken, async (req, res) => {
+    try {
+        const requestedUserId = req.params.userId;
+        const authenticatedUserId = req.user.userId;
+        const limit = parseInt(req.query.limit) || 50;
+        
+        // Get date range from query params, default to last 30 days if not specified
+        const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
+        const startDate = req.query.startDate 
+            ? new Date(req.query.startDate)
+            : new Date(endDate.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days back
+
+        // Security check
+        if (requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({
+                error: 'Unauthorized access',
+                message: 'You can only access your own time tracking data'
+            });
+        }
+
+        // Find daily time entries within date range
+        const dailyTimes = await DailyTime.find({
+            userId: requestedUserId,
+            date: {
+                $gte: startDate,
+                $lte: endDate
+            }
+        })
+        .sort({ date: -1 })
+        .limit(limit);
+
+        // Calculate summary statistics
+        const totalSeconds = dailyTimes.reduce((sum, day) => sum + (day.totalSeconds || 0), 0);
+        const totalTasks = dailyTimes.reduce((sum, day) => sum + (day.tasks ? day.tasks.length : 0), 0);
+
+        // Group tasks by project
+        const projectStats = {};
+        dailyTimes.forEach(day => {
+            day.tasks?.forEach(task => {
+                if (!projectStats[task.projectName]) {
+                    projectStats[task.projectName] = {
+                        totalSeconds: 0,
+                        taskCount: 0
+                    };
+                }
+                projectStats[task.projectName].totalSeconds += task.seconds || 0;
+                projectStats[task.projectName].taskCount += 1;
+            });
+        });
+
+        // Calculate daily averages
+        const uniqueDays = new Set(dailyTimes.map(dt => dt.date.toISOString().split('T')[0])).size;
+        const averageSecondsPerDay = uniqueDays > 0 ? Math.round(totalSeconds / uniqueDays) : 0;
+
+        // Format the time data with additional details
+        const formattedDailyTimes = dailyTimes.map(day => {
+            const dayTotalSeconds = day.totalSeconds || 0;
+            const formattedTasks = day.tasks?.map(task => ({
+                taskId: task.taskId,
+                title: task.title,
+                projectName: task.projectName,
+                seconds: task.seconds || 0,
+                formattedTime: formatTime(task.seconds || 0),
+                percentage: dayTotalSeconds > 0 
+                    ? Math.round((task.seconds || 0) * 100 / dayTotalSeconds) 
+                    : 0
+            })) || [];
+
+            return {
+                date: day.date,
+                totalSeconds: dayTotalSeconds,
+                formattedTotal: formatTime(dayTotalSeconds),
+                tasks: formattedTasks,
+                taskCount: formattedTasks.length,
+                summary: {
+                    mostTimeSpentOn: formattedTasks.length > 0 
+                        ? formattedTasks.reduce((prev, current) => 
+                            (current.seconds > prev.seconds) ? current : prev
+                        ).title
+                        : null,
+                    projectCount: new Set(formattedTasks.map(t => t.projectName)).size
+                }
+            };
+        });
+
+        // Group by week
+        const weeklyData = {};
+        formattedDailyTimes.forEach(day => {
+            const weekStart = new Date(day.date);
+            weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+            const weekKey = weekStart.toISOString().split('T')[0];
+            
+            if (!weeklyData[weekKey]) {
+                weeklyData[weekKey] = {
+                    weekStart: weekStart,
+                    totalSeconds: 0,
+                    taskCount: 0,
+                    days: []
+                };
+            }
+            
+            weeklyData[weekKey].totalSeconds += day.totalSeconds;
+            weeklyData[weekKey].taskCount += day.taskCount;
+            weeklyData[weekKey].days.push(day);
+        });
+
+        res.status(200).json({
+            dailyTimes: formattedDailyTimes,
+            weeklyData,
+            summary: {
+                dateRange: {
+                    start: startDate,
+                    end: endDate
+                },
+                total: {
+                    seconds: totalSeconds,
+                    formattedTime: formatTime(totalSeconds),
+                    tasks: totalTasks,
+                    days: uniqueDays
+                },
+                average: {
+                    secondsPerDay: averageSecondsPerDay,
+                    formattedTimePerDay: formatTime(averageSecondsPerDay),
+                    tasksPerDay: uniqueDays > 0 ? (totalTasks / uniqueDays).toFixed(1) : 0
+                },
+                projects: Object.entries(projectStats).map(([name, stats]) => ({
+                    name,
+                    totalSeconds: stats.totalSeconds,
+                    formattedTime: formatTime(stats.totalSeconds),
+                    taskCount: stats.taskCount,
+                    percentage: totalSeconds > 0 
+                        ? Math.round(stats.totalSeconds * 100 / totalSeconds) 
+                        : 0
+                }))
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching daily times:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch daily times',
+            details: error.message
+        });
+    }
+});
+
+// Helper function to format seconds into HH:MM:SS
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
