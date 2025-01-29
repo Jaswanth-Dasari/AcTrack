@@ -1586,24 +1586,30 @@ window.addEventListener('beforeunload', async (event) => {
         // Chrome requires returnValue to be set
         event.returnValue = '';
 
-        try {
-            // Show confirmation dialog using electron
-            const choice = await window.electronAPI.showCloseConfirmation();
-            
-            if (choice) {
-                // User clicked Yes, stop the timer and save data
-                await stopTimer();
-                // Send close window event
-                window.electronAPI.closeWindow();
-            }
-            // If user clicked No, prevent the window from closing
-            event.preventDefault();
-            event.returnValue = '';
-        } catch (error) {
-            console.error('Error during close:', error);
-            // Prevent closing on error
-            event.preventDefault();
-            event.returnValue = '';
+        // Show confirmation dialog using electron
+        const choice = await window.electronAPI.showCloseConfirmation();
+        
+        if (choice) {
+            // User clicked Yes, stop the timer and save data
+            await stopTimer();
+            // Allow the window to close
+            window.electronAPI.closeWindow();
         }
+        // If user clicked No, do nothing and keep the window open
     }
 });
+
+// Add this to your existing window.electronAPI interface
+window.electronAPI = {
+    ...window.electronAPI,
+    showCloseConfirmation: () => {
+        return new Promise((resolve) => {
+            const choice = confirm('Timer is still running. Do you want to stop tracking and close the application?');
+            resolve(choice);
+        });
+    },
+    closeWindow: () => {
+        // This will be implemented in the main process
+        console.log('Closing window...');
+    }
+};
