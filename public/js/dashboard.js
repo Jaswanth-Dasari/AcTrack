@@ -1540,26 +1540,6 @@ function setupRecurringTaskFields() {
     }
 }
 
-// Update the electronAPI interface
-window.electronAPI = {
-    ...window.electronAPI,
-    showCloseConfirmation: () => {
-        return new Promise((resolve) => {
-            const choice = confirm('Timer is still running. Do you want to stop tracking and close the application?');
-            resolve(choice);
-        });
-    },
-    closeWindow: () => {
-        // Use the IPC renderer to send close-window event
-        if (window.electron && window.electron.ipcRenderer) {
-            window.electron.ipcRenderer.send('close-window');
-        } else {
-            // Fallback for web browser
-            window.close();
-        }
-    }
-};
-
 // Function to start updating total hours
 function startTotalHoursUpdate() {
     // Update immediately
@@ -1586,20 +1566,32 @@ window.addEventListener('beforeunload', async (event) => {
         // Chrome requires returnValue to be set
         event.returnValue = '';
 
-        // Show confirmation dialog using electron
-        const choice = await window.electronAPI.showCloseConfirmation();
-        
-        if (choice) {
-            // User clicked Yes, stop the timer and save data
-            await stopTimer();
-            // Allow the window to close
-            window.electronAPI.closeWindow();
+        try {
+            // Show confirmation dialog using electron
+            const choice = await window.electronAPI.showCloseConfirmation();
+            
+            if (choice) {
+                // User clicked Yes, stop the timer and save data
+                await stopTimer();
+                // Send close command to main process
+                await window.electronAPI.closeWindow();
+            }
+            // If user clicked No, prevent closing
+            event.preventDefault();
+            event.returnValue = '';
+        } catch (error) {
+            console.error('Error during close:', error);
+            // If there's an error, prevent closing
+            event.preventDefault();
+            event.returnValue = '';
         }
-        // If user clicked No, do nothing and keep the window open
+    } else {
+        // No timer running, close normally
+        await window.electronAPI.closeWindow();
     }
 });
 
-// Add this to your existing window.electronAPI interface
+// Update the electronAPI interface
 window.electronAPI = {
     ...window.electronAPI,
     showCloseConfirmation: () => {
@@ -1608,8 +1600,12 @@ window.electronAPI = {
             resolve(choice);
         });
     },
-    closeWindow: () => {
-        // This will be implemented in the main process
-        console.log('Closing window...');
+    closeWindow: async () => {
+        try {
+            // Send IPC message to main process to close the window
+            await window.ipcRenderer.send('close-window');
+        } catch (error) {
+            console.error('Error closing window:', error);
+        }
     }
 };
